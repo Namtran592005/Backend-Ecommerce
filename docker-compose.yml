@@ -1,0 +1,111 @@
+# UniMate production stack: MySQL + backend API + Caddy (HTTPS tự động)
+# Chạy với file env riêng:  docker compose --env-file .env.docker up -d --build
+# (compose mặc định đọc .env của dev nên BẮT BUỘC chỉ định --env-file)
+
+name: unimate
+
+services:
+  mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: unimate
+      MYSQL_USER: ${MYSQL_USER:-unimate}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    volumes:
+      - mysql-data:/var/lib/mysql
+      # Chạy 1 lần duy nhất khi volume còn trống (tạo schema + seed RBAC/payment/shipping)
+      - ./docker/mysql-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      # 127.0.0.1 ép đi TCP (localhost dùng socket, báo healthy sớm gây backend lỗi kết nối)
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - appnet
+    # MySQL chỉ nghe mạng nội bộ Docker. Muốn xem DB từ ngoài thì mở dòng dưới (chỉ 127.0.0.1):
+    # ports:
+    #   - "127.0.0.1:3306:3306"
+
+  backend:
+    build: .
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_USER: ${MYSQL_USER:-unimate}
+      DB_PASSWORD: ${MYSQL_PASSWORD}
+      DB_NAME: unimate
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRES_IN: 15m
+      JWT_REFRESH_EXPIRES_IN: 30d
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS}
+      # Mặc định 1 (Caddy có HTTPS thật). Test local HTTP thuần thì đặt 0 trong .env.docker
+      FORCE_HTTPS: ${FORCE_HTTPS:-1}
+      TRUST_PROXY: 1
+      COOKIE_SECURE: ${COOKIE_SECURE:-1}
+      # Object storage (MinIO, S3-compatible). Thiếu các biến này → API /media/upload trả 503
+      S3_ENDPOINT: http://minio:9000
+      S3_REGION: us-east-1
+      S3_BUCKET: ${S3_BUCKET:-unimate}
+      S3_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
+      S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      S3_PUBLIC_URL: ${S3_PUBLIC_URL}
+      S3_MAX_MB: ${S3_MAX_MB:-10}
+    depends_on:
+      mysql:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - appnet
+    # Không publish port 3000 ra ngoài — chỉ Caddy được gọi vào
+
+  # Kho object storage cho ảnh sản phẩm/banner (tương thích S3, thay R2/AWS được qua S3_* )
+  minio:
+    image: quay.io/minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    volumes:
+      - minio-data:/data
+    restart: unless-stopped
+    networks:
+      - appnet
+    # Console quản trị: chỉ mở trên máy chủ (http://127.0.0.1:9001)
+    ports:
+      - "127.0.0.1:9001:9001"
+    # File công khai đi qua Caddy /files (có HTTPS). Muốn truy cập :9000 trực tiếp thì mở dòng dưới:
+    # ports:
+    #   - "127.0.0.1:9000:9000"
+
+  caddy:
+    image: caddy:2-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./docker/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    environment:
+      API_DOMAIN: ${API_DOMAIN}
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - appnet
+
+volumes:
+  mysql-data:
+  minio-data:
+  caddy-data:
+  caddy-config:
+
+networks:
+  appnet:
+    driver: bridge

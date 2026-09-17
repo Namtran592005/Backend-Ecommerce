@@ -1,0 +1,15 @@
+# Secrets & môi trường máy (không push)
+.env
+.env.docker
+.env.local
+
+# Deps & logs
+node_modules/
+npm-debug.log*
+*.log
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

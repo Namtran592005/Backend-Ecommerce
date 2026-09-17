@@ -1,0 +1,17 @@
+# Caddy reverse proxy cho UniMate API.
+# - API_DOMAIN=api.example.com   → Caddy tự xin & gia hạn HTTPS (Let's Encrypt)
+# - API_DOMAIN=http://localhost  → chạy HTTP thuần (chỉ dùng để test nội bộ)
+{
+	admin off
+}
+
+{$API_DOMAIN} {
+	# File công khai từ MinIO: https://API_DOMAIN/files/unimate/<key>
+	handle /files/* {
+		uri strip_prefix /files
+		reverse_proxy minio:9000
+	}
+	handle {
+		reverse_proxy backend:3000
+	}
+}

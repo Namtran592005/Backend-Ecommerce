@@ -1,0 +1,12 @@
+node_modules
+npm-debug.log
+.env
+.env.docker
+.git
+.gitignore
+test-*.js
+import-db.js
+check-*.js
+debug-*.js
+*.md
+docker
