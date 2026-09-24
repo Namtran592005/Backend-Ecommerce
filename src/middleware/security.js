@@ -1,12 +1,15 @@
 const rateLimit = require('express-rate-limit');
 
-// Chống brute-force cho login/register/refresh: 20 req / 10 phút / IP
+// Chống brute-force cho login/register/refresh: 30 req / 10 phút / IP.
+// skipSuccessfulRequests: đăng nhập ĐÚNG không tính — chỉ chặn kẻ đoán mật khẩu,
+// người dùng thật không bao giờ bị khóa oan vì bấm thử.
 const authLimiter = rateLimit({
   windowMs: 10 * 60 * 1000,
-  max: 20,
+  max: 30,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { error: 'Thu lai sau 10 phut (gioi han dang nhap)' },
+  skipSuccessfulRequests: true,
+  message: { error: 'Sai qua nhieu lan, thu lai sau 10 phut' },
 });
 
 // Giới hạn chung cho toàn API: 300 req / 1 phút / IP

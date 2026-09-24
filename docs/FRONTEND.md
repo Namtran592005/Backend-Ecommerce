@@ -83,11 +83,11 @@ hết hàng/coupon sai → 400 + `error` tiếng Việt → hiển thị. Prefil
 - Đổi trả: `POST /returns { order_id, reason_code, items:[{ order_item_id, requested_quantity }] }`.
 - Sổ địa chỉ: `POST /users/:id/addresses`, `PUT/DELETE /users/addresses/:addrId`.
 
-## 5. Upload ảnh (cần `products.write`)
+## 5. Upload ảnh/video/tệp (cần `products.write`)
 
 ```js
 const fd = new FormData();
-fd.append('file', fileInput.files[0]); // jpg/png/webp/gif ≤ 10MB
+fd.append('file', fileInput.files[0]); // ảnh ≤ 10MB, video ≤ 100MB, tệp ≤ 20MB
 const { id: media_id, url } = await api.post('/media/upload', fd).then(r => r.data);
 await api.post(`/products/${productId}/images`, { media_id, is_primary: true });
 // <img src={url} /> — file công khai https://API_DOMAIN/files/unimate/<object_key>
@@ -108,4 +108,4 @@ await api.post(`/products/${productId}/images`, { media_id, is_primary: true });
 - Luôn `https://` + `credentials:'include'`; 401 → refresh 1 lần → vẫn 401 → về login.
 - Rate-limit (auth 20/10p, chung 300/1p): hiện lỗi server trả, không tự retry.
 - Test nhanh: `GET /api/health` → `{ ok:true, db:'up' }`.
-- Admin `admin@unimate.vn` / `Admin123!` (thấy hết menu) · khách tự register.
+- Admin `admin@example.com` / `Admin123!` (thấy hết menu) · khách tự register.

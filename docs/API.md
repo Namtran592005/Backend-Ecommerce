@@ -41,6 +41,7 @@ Roles: `super_admin | store_manager | warehouse_staff | customer_support | marke
 | `GET /:id` | chính mình hoặc `users.read` | `{ user, profile, roles, addresses }` |
 | `PATCH /:id/status` | `users.write` | `{ status: pending\|active\|inactive\|suspended\|deleted }` |
 | `POST /:id/roles` | `users.write` | `{ role_code }` hoặc `{ role_id }` |
+| `POST /` | `users.write` | Tạo tài khoản + gán vai trò: `{ email?, phone?, password (≥8), first_name?, last_name?, role_code? }` (dùng thêm nhân sự) |
 | `DELETE /:id/roles/:roleId` | `users.write` | |
 | `POST /:id/addresses` | chính mình / `users.write` | Bắt buộc `recipient_name, phone, province_name, address_line`; `is_default` auto reset cái cũ |
 | `PUT /addresses/:addrId`, `DELETE /addresses/:addrId` | chủ địa chỉ / `users.write` | |
@@ -64,8 +65,10 @@ Roles: `super_admin | store_manager | warehouse_staff | customer_support | marke
   `PUT /variants/:id` · `DELETE /variants/:id` (tắt).
 - Attributes: `GET /attributes` (kèm `values[]`) · `POST /attributes { name, code, display_type?, sort_order? }` ·
   `POST /attributes/:id/values { value, display_value?, color_hex?, ... }`.
-- Images/metadata: `POST /products/:id/images { media_id, variant_id?, sort_order?, is_primary?, alt_text? }` ·
-  `DELETE /product-images/:id` · `GET /media` 🔒 (list) · `POST /media` (metadata URL ngoài, không upload file).
+- Images: `POST /products/:id/images { media_id, variant_id?, sort_order?, is_primary?, alt_text? }` ·
+  `PUT /product-images/:id { sort_order?, is_primary?, alt_text?, variant_id? }`
+  (đặt `is_primary:true` tự hạ ảnh chính cũ) · `DELETE /product-images/:id`.
+  Chi tiết sản phẩm trả `images[]` kèm `object_key` để dựng URL xem trước.
 
 ## 4. Media / object storage — `/api/media`
 
@@ -73,7 +76,7 @@ File lưu ở MinIO (S3-compatible), phục vụ công khai `https://API_DOMAIN/
 
 | Method & path | Quyền | Ghi chú |
 |---|---|---|
-| `POST /upload` | 🔒 + `products.write` | multipart field `"file"`; chỉ jpg/png/webp/gif ≤ 10MB → 201 `{ id, object_key, mime_type, size_bytes, url }` |
+| `POST /upload` | 🔒 + `products.write` | multipart field `"file"` → 201 `{ id, object_key, mime_type, size_bytes, url }`. Nhận: ảnh jpg/png/webp/gif (≤ `S3_MAX_IMAGE_MB` = 10MB) · video mp4/webm/ogg (≤ `S3_MAX_VIDEO_MB` = 100MB) · tệp pdf/zip/doc/xls/txt/csv (≤ `S3_MAX_FILE_MB` = 20MB). Sai định dạng/quá cỡ → 400 |
 | `GET /:id/url` | public | `{ id, url, mime_type }` |
 | `DELETE /:id` | 🔒 + `products.write` | 409 nếu đang gắn sản phẩm/brand/category/banner/review |
 
@@ -170,3 +173,12 @@ Luồng đơn: `pending → confirmed/cancelled → processing → packed → sh
 - Logs: `GET /audit-logs`, `GET /admin-logs` (`audit.read`).
 - `GET /reports/summary` (`reports.read`) → `{ all_time:{ total_orders, revenue }, today, top_products[], low_stock[], by_payment[] }`.
 - `GET /health` (public) → `{ ok, db, time }`.
+
+## 13. Email marketing — `/api/email` (SMTP chuẩn)
+
+- `GET /config` (`promotions.read`) → `{ configured, host, port, from }` (không lộ pass).
+- `POST /test { to }` (`promotions.write`) — gửi thử 1 mail.
+- `POST /send { to: [tối đa 200 email], subject, html }` (`promotions.write`) →
+  `{ sent, failed: [{ to, error }] }` (gửi từng mail, lọc `<script>`, ghi audit).
+  Chưa cấu hình SMTP → từng mail `failed` với lý do rõ ràng.
+  Biến môi trường: `SMTP_HOST/PORT/SECURE/USER/PASS/FROM`.

@@ -13,4 +13,4 @@ npm test; npm run test:security              # 27 E2E + 7 bảo mật
 Copy-Item .env.docker.example .env.docker
 docker compose --env-file .env.docker up -d --build   # stack hoàn chỉnh
 ```
-Admin seed: `admin@unimate.vn` / `Admin123!`.
+Admin seed: `admin@example.com` / `Admin123!`.

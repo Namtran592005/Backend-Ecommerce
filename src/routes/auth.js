@@ -49,7 +49,7 @@ router.post('/register',
       const [[user]] = await pool.query('SELECT * FROM users WHERE id=?', [uid]);
       const { access, refresh } = issuePair(res, user);
       await createSession(uid, req, access, refresh);
-      res.status(201).json({ token: access, accessToken: access, expiresIn: process.env.JWT_EXPIRES_IN || '15m', user: { id: uid, email, phone, status: 'active' } });
+      res.status(201).json({ token: access, accessToken: access, refreshToken: refresh, expiresIn: process.env.JWT_EXPIRES_IN || '15m', user: { id: uid, email, phone, status: 'active' } });
     } catch (e) {
       const prod = process.env.NODE_ENV === 'production';
       res.status(500).json({ error: prod ? 'Loi server' : e.message });
@@ -72,7 +72,7 @@ router.post('/login', body('identifier').notEmpty().trim(), body('password').not
     const { access, refresh } = issuePair(res, user);
     await createSession(user.id, req, access, refresh);
     const [roles] = await pool.query(`SELECT r.code FROM user_roles ur JOIN roles r ON r.id=ur.role_id WHERE ur.user_id=?`, [user.id]);
-    res.json({ token: access, accessToken: access, expiresIn: process.env.JWT_EXPIRES_IN || '15m', user: { id: user.id, email: user.email, phone: user.phone, roles: roles.map(r => r.code) } });
+    res.json({ token: access, accessToken: access, refreshToken: refresh, expiresIn: process.env.JWT_EXPIRES_IN || '15m', user: { id: user.id, email: user.email, phone: user.phone, roles: roles.map(r => r.code) } });
   } catch (e) {
     const prod = process.env.NODE_ENV === 'production';
     res.status(500).json({ error: prod ? 'Loi server' : e.message });
@@ -96,7 +96,7 @@ router.post('/refresh', async (req, res) => {
     await pool.query('UPDATE user_sessions SET revoked_at=NOW(6) WHERE id=?', [sess.id]);
     const { access, refresh } = issuePair(res, user);
     await createSession(user.id, req, access, refresh);
-    res.json({ token: access, accessToken: access, expiresIn: process.env.JWT_EXPIRES_IN || '15m' });
+    res.json({ token: access, accessToken: access, refreshToken: refresh, expiresIn: process.env.JWT_EXPIRES_IN || '15m' });
   } catch (e) {
     const prod = process.env.NODE_ENV === 'production';
     return res.status(401).json({ error: 'Refresh token khong hop le', detail: prod ? undefined : e.message });

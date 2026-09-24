@@ -10,7 +10,8 @@
     "test": "node test-api.js",
     "test:security": "node test-security.js",
     "db:init": "node db/build-init.js",
-    "db:import": "node import-db.js"
+    "db:import": "node import-db.js",
+    "db:seed-demo": "node db/seed-demo.js"
   },
   "keywords": [],
   "author": "",
@@ -29,6 +30,7 @@
     "jsonwebtoken": "^9.0.3",
     "morgan": "^1.12.1",
     "multer": "^2.4.0",
-    "mysql2": "^3.24.4"
+    "mysql2": "^3.24.4",
+    "nodemailer": "^10.0.10"
   }
 }

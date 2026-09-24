@@ -17,6 +17,7 @@ const shippingRoutes = require('./routes/shipping');
 const promosRoutes = require('./routes/promotions');
 const reviewsRoutes = require('./routes/reviews');
 const mediaRoutes = require('./routes/media');
+const emailRoutes = require('./routes/email');
 const extraRoutes = require('./routes/extra');
 
 const app = express();
@@ -55,6 +56,7 @@ app.use('/api/shipping', shippingRoutes);
 app.use('/api/promos', promosRoutes);
 app.use('/api', reviewsRoutes);
 app.use('/api/media', mediaRoutes);
+app.use('/api/email', emailRoutes);
 app.use('/api', extraRoutes);
 
 // CORS bị chặn -> JSON rõ ràng thay vì crash

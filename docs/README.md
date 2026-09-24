@@ -28,7 +28,7 @@ docker compose --env-file .env.docker up -d --build
 ```
 
 ## Tài khoản
-- Admin: `admin@unimate.vn` / `Admin123!` (role `super_admin`, đổi pass ngay khi deploy)
+- Admin: `admin@example.com` / `Admin123!` (role `super_admin`, đổi pass ngay khi deploy)
 - Khách: tự `POST /api/auth/register` (role `customer`)
 
 ## Cấu trúc repo
@@ -37,9 +37,9 @@ backend/
 ├── docs/            # tài liệu (bạn đang ở đây)
 ├── db/              # schema.sql (nguồn chân lý) + build-init.js (sinh init cho Docker)
 ├── src/
-│   ├── config/      # db.js, storage.js (S3/MinIO)
+│   ├── config/      # db.js, storage.js (S3/MinIO), mailer.js (SMTP)
 │   ├── middleware/  # auth.js (JWT+RBAC), security.js (CORS, rate-limit)
-│   ├── routes/      # auth, users, catalog, media, inventory, cart,
+│   ├── routes/      # auth, users, catalog, media, email, inventory, cart,
 │   │                # orders, payments, shipping, promotions, reviews, extra
 │   ├── app.js
 │   └── server.js

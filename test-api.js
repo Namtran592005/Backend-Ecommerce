@@ -22,7 +22,7 @@ async function api(method, path, body, token) {
   const health = await t('health', () => api('GET', '/health'));
   assert(health.ok, 'health fail');
 
-  const adminLogin = await t('admin login', () => api('POST', '/auth/login', { identifier: 'admin@unimate.vn', password: 'Admin123!' }));
+  const adminLogin = await t('admin login', () => api('POST', '/auth/login', { identifier: 'admin@example.com', password: 'Admin123!' }));
   const ADMIN = adminLogin?.token; assert(ADMIN, 'no admin token');
 
   const custEmail = `test${Date.now()}@gmail.com`;

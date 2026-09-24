@@ -2,7 +2,26 @@ const { S3Client, CreateBucketCommand, HeadBucketCommand, PutBucketPolicyCommand
 
 const BUCKET = process.env.S3_BUCKET || 'unimate';
 const PUBLIC_BASE = (process.env.S3_PUBLIC_URL || '').replace(/\/$/, ''); // VD https://api.domain/files/unimate
-const MAX_MB = Number(process.env.S3_MAX_MB || 10);
+const MAX_IMAGE_MB = Number(process.env.S3_MAX_IMAGE_MB || process.env.S3_MAX_MB || 10);
+const MAX_VIDEO_MB = Number(process.env.S3_MAX_VIDEO_MB || 100);
+const MAX_FILE_MB = Number(process.env.S3_MAX_FILE_MB || 20);
+const MAX_MB = Math.max(MAX_IMAGE_MB, MAX_VIDEO_MB, MAX_FILE_MB);
+
+const IMAGE_MIME = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
+const VIDEO_MIME = new Set(['video/mp4', 'video/webm', 'video/ogg']);
+const FILE_MIME = new Set([
+  'application/pdf', 'application/zip', 'application/x-zip-compressed',
+  'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'text/plain', 'text/csv',
+]);
+const kindOf = (mime) => {
+  if (IMAGE_MIME.has(mime)) return 'image';
+  if (VIDEO_MIME.has(mime)) return 'video';
+  if (FILE_MIME.has(mime)) return 'file';
+  return null;
+};
+const limitOf = (kind) => (kind === 'video' ? MAX_VIDEO_MB : kind === 'file' ? MAX_FILE_MB : MAX_IMAGE_MB);
 
 let client = null;
 function s3() {
@@ -67,4 +86,4 @@ async function deleteObject(key) {
   await s3().send(new DeleteObjectCommand({ Bucket: BUCKET, Key: key }));
 }
 
-module.exports = { BUCKET, MAX_MB, s3, ensureBucket, publicUrl, putObject, objectExists, deleteObject };
+module.exports = { BUCKET, MAX_MB, MAX_IMAGE_MB, MAX_VIDEO_MB, MAX_FILE_MB, kindOf, limitOf, s3, ensureBucket, publicUrl, putObject, objectExists, deleteObject };

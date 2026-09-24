@@ -19,7 +19,7 @@ async function waitForDb(retries = 20, delayMs = 3000) {
 
 (async () => {
   await waitForDb();
-  const email = 'admin@unimate.vn';
+  const email = 'admin@example.com';
   const password = 'Admin123!';
   const hash = await bcrypt.hash(password, 10);
   let [[u]] = await pool.query('SELECT * FROM users WHERE email=?', [email]);

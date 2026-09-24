@@ -1,4 +1,5 @@
 const express = require('express');
+const bcrypt = require('bcryptjs');
 const { pool } = require('../config/db');
 const { authRequired, requirePerm } = require('../middleware/auth');
 const { paged } = require('../utils/helpers');
@@ -29,6 +30,27 @@ router.get('/', authRequired, requirePerm('users.read'), async (req, res) => {
       LEFT JOIN user_roles ur ON ur.user_id=u.id LEFT JOIN roles r ON r.id=ur.role_id
       ${w} GROUP BY u.id ORDER BY u.id DESC LIMIT ? OFFSET ?`, [...p, limit, offset]);
     res.json({ data: rows, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/users — tạo tài khoản (dùng để thêm nhân sự + gán vai trò)
+router.post('/', authRequired, requirePerm('users.write'), async (req, res) => {
+  const { email, phone, password, first_name, last_name, role_code = 'customer' } = req.body;
+  const em = email ? String(email).trim().toLowerCase() : null;
+  if (!em && !phone) return res.status(400).json({ error: 'Can email hoac phone' });
+  if (!password || String(password).length < 8) return res.status(400).json({ error: 'Mat khau toi thieu 8 ky tu' });
+  try {
+    if (em) { const [[ex]] = await pool.query('SELECT id FROM users WHERE email=?', [em]); if (ex) return res.status(409).json({ error: 'Email da ton tai' }); }
+    if (phone) { const [[ex]] = await pool.query('SELECT id FROM users WHERE phone=?', [phone]); if (ex) return res.status(409).json({ error: 'Phone da ton tai' }); }
+    const [[role]] = await pool.query('SELECT id FROM roles WHERE code=?', [role_code]);
+    if (!role) return res.status(400).json({ error: 'Vai tro khong ton tai' });
+    const hash = await bcrypt.hash(password, 12);
+    const [r] = await pool.query("INSERT INTO users (email, phone, password_hash, status) VALUES (?,?,?,'active')", [em, phone || null, hash]);
+    await pool.query('INSERT INTO user_profiles (user_id, first_name, last_name, display_name) VALUES (?,?,?,?)',
+      [r.insertId, first_name || null, last_name || null, [first_name, last_name].filter(Boolean).join(' ') || em || phone]);
+    await pool.query('INSERT IGNORE INTO user_roles (user_id, role_id, assigned_by) VALUES (?,?,?)', [r.insertId, role.id, req.user.id]);
+    const [[row]] = await pool.query('SELECT * FROM users WHERE id=?', [r.insertId]);
+    res.status(201).json(row);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 

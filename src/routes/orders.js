@@ -36,11 +36,19 @@ function calcCouponDiscount(coupon, subtotal, shippingFee) {
 
 // POST /api/orders/checkout  (transaction day du)
 router.post('/checkout', authOptional, async (req, res) => {
-  const { items, shipping_address, billing_address, coupon_code, payment_method_code = 'cod', shipping_method_code, customer_note } = req.body;
+  const { items, shipping_address, billing_address, coupon_code, payment_method_code = 'cod', shipping_method_code, customer_note, user_id: bodyUserId } = req.body;
   if (!Array.isArray(items) || !items.length) return res.status(400).json({ error: 'Gio hang rong' });
   if (!shipping_address || !shipping_address.recipient_name || !shipping_address.phone || !shipping_address.province_name || !shipping_address.address_line)
     return res.status(400).json({ error: 'Thieu dia chi giao hang' });
-  const userId = req.user ? req.user.id : (req.body.user_id || null);
+  // Nhân viên (orders.write) được đặt hộ: user_id trong body thắng user đăng nhập.
+  // Khách thường: đơn gắn chính mình (hoặc vãng lai nếu chưa login).
+  const staff = req.user && (req.user.roles.includes('super_admin') || req.user.permissions.includes('orders.write'));
+  if (bodyUserId) {
+    const [[target]] = await pool.query('SELECT id FROM users WHERE id=? AND deleted_at IS NULL', [bodyUserId]);
+    if (!target) return res.status(400).json({ error: 'Khach hang khong ton tai' });
+    if (!staff) return res.status(403).json({ error: 'Khong co quyen dat ho' });
+  }
+  const userId = (bodyUserId && staff) ? bodyUserId : (req.user ? req.user.id : (bodyUserId || null));
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();

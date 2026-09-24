@@ -94,7 +94,8 @@ router.get('/products/slug/:slug', async (req, res) => {
   const [[pr]] = await pool.query('SELECT pr.*, b.name brand_name FROM products pr LEFT JOIN brands b ON b.id=pr.brand_id WHERE pr.slug=?', [req.params.slug]);
   if (!pr) return res.status(404).json({ error: 'Khong tim thay' });
   const [variants] = await pool.query(`SELECT v.*, (SELECT COALESCE(SUM(ws.quantity - ws.reserved_quantity),0) FROM warehouse_stocks ws WHERE ws.variant_id=v.id) available_qty FROM product_variants v WHERE v.product_id=?`, [pr.id]);
-  const [images] = await pool.query('SELECT * FROM product_images WHERE product_id=? ORDER BY is_primary DESC, sort_order', [pr.id]);
+  const [images] = await pool.query(`SELECT pi.*, mf.object_key, mf.mime_type FROM product_images pi
+    LEFT JOIN media_files mf ON mf.id=pi.media_id WHERE pi.product_id=? ORDER BY is_primary DESC, sort_order`, [pr.id]);
   const [cats] = await pool.query('SELECT c.* FROM product_categories pc JOIN categories c ON c.id=pc.category_id WHERE pc.product_id=?', [pr.id]);
   const [reviews] = await pool.query("SELECT COUNT(*) c, AVG(rating) avg_rating FROM reviews WHERE product_id=? AND status='published'", [pr.id]);
   res.json({ ...pr, variants, images, categories: cats, review_summary: reviews[0] });
@@ -104,7 +105,8 @@ router.get('/products/:id', async (req, res) => {
   const [[pr]] = await pool.query('SELECT * FROM products WHERE id=?', [req.params.id]);
   if (!pr) return res.status(404).json({ error: 'Khong tim thay' });
   const [variants] = await pool.query('SELECT * FROM product_variants WHERE product_id=?', [pr.id]);
-  const [images] = await pool.query('SELECT * FROM product_images WHERE product_id=? ORDER BY sort_order', [pr.id]);
+  const [images] = await pool.query(`SELECT pi.*, mf.object_key, mf.mime_type FROM product_images pi
+    LEFT JOIN media_files mf ON mf.id=pi.media_id WHERE pi.product_id=? ORDER BY sort_order`, [pr.id]);
   const [cats] = await pool.query('SELECT c.* FROM product_categories pc JOIN categories c ON c.id=pc.category_id WHERE pc.product_id=?', [pr.id]);
   res.json({ ...pr, variants, images, categories: cats });
 });
@@ -211,6 +213,21 @@ router.post('/products/:id/images', authRequired, requirePerm('products.write'),
     [req.params.id, variant_id || null, media_id, sort_order || 0, !!is_primary, alt_text || null]);
   const [[row]] = await pool.query('SELECT * FROM product_images WHERE id=?', [r.insertId]);
   res.status(201).json(row);
+});
+router.put('/product-images/:id', authRequired, requirePerm('products.write'), async (req, res) => {
+  const [[im]] = await pool.query('SELECT * FROM product_images WHERE id=?', [req.params.id]);
+  if (!im) return res.status(404).json({ error: 'Khong tim thay' });
+  const { sort_order, is_primary, alt_text, variant_id } = req.body;
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    if (is_primary) await conn.query('UPDATE product_images SET is_primary=FALSE WHERE product_id=?', [im.product_id]);
+    await conn.query('UPDATE product_images SET sort_order=COALESCE(?,sort_order), is_primary=COALESCE(?,is_primary), alt_text=COALESCE(?,alt_text), variant_id=COALESCE(?,variant_id) WHERE id=?',
+      [sort_order ?? null, is_primary !== undefined ? !!is_primary : null, alt_text !== undefined ? alt_text : null, variant_id !== undefined ? variant_id : null, im.id]);
+    await conn.commit();
+    const [[row]] = await pool.query('SELECT * FROM product_images WHERE id=?', [im.id]);
+    res.json(row);
+  } catch (e) { await conn.rollback(); res.status(400).json({ error: e.message }); } finally { conn.release(); }
 });
 router.delete('/product-images/:id', authRequired, requirePerm('products.write'), async (req, res) => {
   await pool.query('DELETE FROM product_images WHERE id=?', [req.params.id]);

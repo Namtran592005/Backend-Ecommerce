@@ -1,7 +1,8 @@
 # Triển khai Docker — UniMate (1 máy chủ là chạy)
 
-Stack 4 container: **MySQL 8.0** (tự tạo schema + seed) → **backend** (Node 22,
-tự seed admin) → **MinIO** (kho ảnh S3) → **Caddy** (HTTPS tự động + `/files`).
+Stack 5 container: **MySQL 8.0** (tự tạo schema + seed) → **backend** (Node 22,
+tự seed admin) → **MinIO** (kho ảnh/video/tệp S3) → **admin** (trang quản trị,
+nginx) → **Caddy** (HTTPS tự động + `/files` + trang admin).
 
 ## 1. Máy chủ (Ubuntu 22.04+)
 ```bash
@@ -25,8 +26,8 @@ cd /opt/unimate
 cp .env.docker.example .env.docker && nano .env.docker
 ```
 ```ini
-API_DOMAIN=api.unimate.vn
-ALLOWED_ORIGINS=https://shop.unimate.vn
+API_DOMAIN=api.example.com
+ALLOWED_ORIGINS=https://shop.example.com
 MYSQL_ROOT_PASSWORD=<mạnh 1>
 MYSQL_USER=unimate
 MYSQL_PASSWORD=<mạnh 2>
@@ -34,7 +35,16 @@ JWT_SECRET=<openssl rand -hex 32>
 MINIO_ROOT_USER=minioadmin
 MINIO_ROOT_PASSWORD=<mạnh 3>
 S3_BUCKET=unimate
-S3_PUBLIC_URL=https://api.unimate.vn/files/unimate
+S3_PUBLIC_URL=https://api.example.com/files/unimate
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=shop@example.com
+SMTP_PASS=<app-password>
+SMTP_FROM=UniMate <shop@example.com>
+# Trang quan tri (doi ADMIN_API_BASE phai build lai: up -d --build admin)
+ADMIN_DOMAIN=admin.example.com
+ADMIN_API_BASE=https://api.example.com/api
 ```
 > Mặc định `FORCE_HTTPS=1, COOKIE_SECURE=1` (đúng cho HTTPS thật, đừng sửa).
 > Muốn dùng AWS S3/R2 thay MinIO: sửa các biến `S3_*` của backend là xong.
@@ -44,23 +54,28 @@ S3_PUBLIC_URL=https://api.unimate.vn/files/unimate
 docker compose --env-file .env.docker up -d --build
 docker compose --env-file .env.docker ps
 docker compose --env-file .env.docker logs -f backend   # xem seed admin + server
-curl https://api.unimate.vn/api/health   # {"ok":true,"db":"up",...}
+curl https://api.example.com/api/health   # {"ok":true,"db":"up",...}
 ```
 Login admin `POST .../api/auth/login`
-`{ "identifier": "admin@unimate.vn", "password": "Admin123!" }`
+`{ "identifier": "admin@example.com", "password": "Admin123!" }`
 → **đổi mật khẩu ngay** (`PUT /api/auth/password`).
+Mở trang quản trị: `https://admin.example.com` (đăng nhập tài khoản nhân sự).
 
 ## 5. Vận hành
 ```bash
-docker compose --env-file .env.docker logs -f [mysql|backend|minio|caddy]
+docker compose --env-file .env.docker logs -f [mysql|backend|minio|admin|caddy]
 docker compose --env-file .env.docker restart backend
-docker compose --env-file .env.docker up -d --build backend   # deploy code mới
+docker compose --env-file .env.docker up -d --build backend   # deploy code backend mới
+docker compose --env-file .env.docker up -d --build admin     # deploy admin mới (đổi code/VITE_API_BASE)
 # Backup DB mỗi đêm
 docker compose --env-file .env.docker exec mysql mysqldump -uroot -p"$MYSQL_ROOT_PASSWORD" unimate | gzip > /backup/unimate-$(date +%F).sql.gz
 # Backup ảnh
 docker run --rm -v unimate_minio-data:/data -v /backup:/b alpine tar czf /b/minio-$(date +%F).tar.gz /data
 # Dựng lại từ đầu (XÓA HẾT DỮ LIỆU)
 docker compose --env-file .env.docker down -v && docker compose --env-file .env.docker up -d
+# Nạp dữ liệu demo chuẩn (6 SP, 6 đơn đủ trạng thái, 8 user @example.com, coupon, banner...)
+docker cp db/seed-demo.js unimate-backend-1:/app/db/seed-demo.js
+docker exec unimate-backend-1 node db/seed-demo.js
 ```
 - MySQL không mở port ra ngoài · Caddy tự xin/gia hạn Let's Encrypt.
 - File công khai: `https://API_DOMAIN/files/...` · Console MinIO: `http://127.0.0.1:9001` trên máy chủ.

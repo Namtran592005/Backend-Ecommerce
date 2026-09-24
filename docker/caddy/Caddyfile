@@ -1,6 +1,8 @@
-# Caddy reverse proxy cho UniMate API.
-# - API_DOMAIN=api.example.com   → Caddy tự xin & gia hạn HTTPS (Let's Encrypt)
-# - API_DOMAIN=http://localhost  → chạy HTTP thuần (chỉ dùng để test nội bộ)
+# Caddy reverse proxy cho UniMate API + Admin.
+# - API_DOMAIN=api.example.com     → Caddy tự xin & gia hạn HTTPS (Let's Encrypt)
+# - API_DOMAIN=http://localhost    → chạy HTTP thuần (chỉ dùng để test nội bộ)
+# - ADMIN_DOMAIN=admin.example.com → trang quản trị (HTTPS tự động)
+# - ADMIN_DOMAIN=http://127.0.0.1:8080 → test nội bộ qua cổng 8080
 {
 	admin off
 }
@@ -14,4 +16,8 @@
 	handle {
 		reverse_proxy backend:3000
 	}
+}
+
+{$ADMIN_DOMAIN} {
+	reverse_proxy admin:80
 }

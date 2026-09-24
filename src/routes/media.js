@@ -1,38 +1,50 @@
 const express = require('express');
 const multer = require('multer');
 const crypto = require('crypto');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
 const { pool } = require('../config/db');
 const { authRequired, requirePerm } = require('../middleware/auth');
 const storage = require('../config/storage');
 
 const router = express.Router();
+// File lớn (video) ghi ra đĩa tạm rồi stream lên S3 — không ôm RAM
 const upload = multer({
-  storage: multer.memoryStorage(),
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => cb(null, os.tmpdir()),
+    filename: (req, file, cb) => cb(null, `unimate-${Date.now()}-${crypto.randomBytes(6).toString('hex')}`),
+  }),
   limits: { fileSize: storage.MAX_MB * 1024 * 1024, files: 1 },
 });
-const ALLOWED_MIME = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
 
 function safeName(n) {
   return String(n || 'file').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
     .replace(/[^a-zA-Z0-9._-]+/g, '-').slice(0, 120) || 'file';
 }
 const err = (res, e) => res.status(e.status || 500).json({ error: e.message || 'Loi server' });
+const cleanup = (p) => { if (p) fs.unlink(p, () => {}); };
 
-// POST /api/media/upload (multipart field "file") — upload qua backend vào MinIO/S3
+// POST /api/media/upload (multipart field "file") — ảnh/video/file vào MinIO/S3
 router.post('/upload', authRequired, requirePerm('products.write'), (req, res) => {
   upload.single('file')(req, res, async (multerErr) => {
+    const tmp = req.file?.path;
     if (multerErr) {
+      cleanup(tmp);
       if (multerErr.code === 'LIMIT_FILE_SIZE') return res.status(400).json({ error: `File vuot qua ${storage.MAX_MB}MB` });
       return res.status(400).json({ error: 'File upload loi: ' + multerErr.message });
     }
     try {
       if (!req.file) return res.status(400).json({ error: 'Thieu field file' });
-      if (!ALLOWED_MIME.has(req.file.mimetype))
-        return res.status(400).json({ error: 'Chi nhan anh jpg/png/webp/gif' });
+      const kind = storage.kindOf(req.file.mimetype);
+      if (!kind) return res.status(400).json({ error: 'Dinh dang chua ho tro (anh jpg/png/webp/gif, video mp4/webm/ogg, file pdf/zip/doc/xls/txt/csv)' });
+      const cap = storage.limitOf(kind);
+      if (req.file.size > cap * 1024 * 1024)
+        return res.status(400).json({ error: `File ${kind === 'image' ? 'anh' : kind === 'video' ? 'video' : ''} vuot qua ${cap}MB` });
       await storage.ensureBucket();
       const d = new Date();
-      const key = `media/${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}/${Date.now()}-${crypto.randomBytes(6).toString('hex')}-${safeName(req.file.originalname)}`;
-      await storage.putObject(key, req.file.buffer, req.file.mimetype);
+      const key = `${kind === 'image' ? 'media' : kind}/${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}/${Date.now()}-${crypto.randomBytes(6).toString('hex')}-${safeName(req.file.originalname)}`;
+      await storage.putObject(key, fs.createReadStream(tmp), req.file.mimetype);
       const [r] = await pool.query(
         `INSERT INTO media_files (owner_user_id, storage_provider, object_key, original_name, mime_type, size_bytes)
          VALUES (?,?,?,?,?,?)`,
@@ -40,10 +52,11 @@ router.post('/upload', authRequired, requirePerm('products.write'), (req, res) =
       const [[row]] = await pool.query('SELECT * FROM media_files WHERE id=?', [r.insertId]);
       res.status(201).json({ ...row, url: storage.publicUrl(key) });
     } catch (e) { err(res, e); }
+    finally { cleanup(tmp); }
   });
 });
 
-// GET /api/media/:id/url — lấy URL công khai của file (dùng cho <img>)
+// GET /api/media/:id/url — lấy URL công khai của file
 router.get('/:id/url', async (req, res) => {
   try {
     const [[m]] = await pool.query('SELECT * FROM media_files WHERE id=?', [req.params.id]);
@@ -65,7 +78,7 @@ router.delete('/:id', authRequired, requirePerm('products.write'), async (req, r
       pool.query('SELECT id FROM review_images WHERE media_id=? LIMIT 1', [m.id]),
     ]);
     if (refs.some(([rows]) => rows.length))
-      return res.status(409).json({ error: 'Anh dang duoc su dung, khong the xoa' });
+      return res.status(409).json({ error: 'File dang duoc su dung, khong the xoa' });
     await storage.deleteObject(m.object_key).catch(() => {});
     await pool.query('DELETE FROM media_files WHERE id=?', [m.id]);
     res.json({ ok: true });
