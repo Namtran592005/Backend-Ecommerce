@@ -37,11 +37,14 @@ router.delete('/brands/:id', authRequired, requirePerm('products.write'), async 
 
 // ---------- CATEGORIES ----------
 router.get('/categories', async (req, res) => {
-  const [rows] = await pool.query('SELECT * FROM categories ORDER BY sort_order, id');
+  const [rows] = await pool.query(`SELECT c.*, m.object_key image_key FROM categories c
+    LEFT JOIN media_files m ON m.id = c.image_media_id ORDER BY c.sort_order, c.id`);
   res.json(rows);
 });
 router.get('/categories/tree', async (req, res) => {
-  const [rows] = await pool.query("SELECT * FROM categories WHERE status='active' ORDER BY sort_order, id");
+  const [rows] = await pool.query(`SELECT c.*, m.object_key image_key FROM categories c
+    LEFT JOIN media_files m ON m.id = c.image_media_id
+    WHERE c.status='active' ORDER BY c.sort_order, c.id`);
   const map = {}; rows.forEach(r => { r.children = []; map[r.id] = r; });
   const roots = [];
   rows.forEach(r => { if (r.parent_id && map[r.parent_id]) map[r.parent_id].children.push(r); else roots.push(r); });

@@ -198,7 +198,10 @@ async function createOrder({ num, userId, status, payStatus, payCode, items, cou
       [name, slug, icon, imgId, sort]);
     catIds[slug] = r.insertId;
     for (const [ks, kn, ki, ksrt] of kids) {
-      const [kr] = await q("INSERT INTO categories (parent_id,name,slug,icon,sort_order,status) VALUES (?,?,?,?,?,'active')", [r.insertId, kn, ks, ki, ksrt]);
+      const kpal = CAT_PALETTE[catIdx++ % CAT_PALETTE.length];
+      let kImgId = null;
+      if (storageOk) kImgId = await putArt(`demo/cat-${ks}.svg`, categoryArt({ bg1: kpal.bg1, bg2: kpal.bg2, main: kpal.main, label: kn }));
+      const [kr] = await q("INSERT INTO categories (parent_id,name,slug,icon,image_media_id,sort_order,status) VALUES (?,?,?,?,?,?,'active')", [r.insertId, kn, ks, ki, kImgId, ksrt]);
       catIds[ks] = kr.insertId;
     }
   }
