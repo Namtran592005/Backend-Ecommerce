@@ -33,22 +33,34 @@ ${label ? `<text x="400" y="742" font-family="Segoe UI,Arial,sans-serif" font-si
 </svg>`;
 }
 
-function bannerArt({ bg1 = '#0b3d9e', bg2 = '#2f7fd0', kicker = '', title = '', sub = '', cta = '', deco = '#f59e0b' }) {
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="1352" height="480" viewBox="0 0 1352 480">
+function bannerArt({ bg1 = '#0b3d9e', bg2 = '#2f7fd0', kicker = '', title = '', sub = '', cta = '', deco = '#f59e0b', mobile = false }) {
+  const W = mobile ? 960 : 1600;
+  const H = Math.round(W * 9 / 16);
+  const k = W / 1600;
+  const x = Math.round(96 * k);
+  const c1x = Math.round(W * 0.74), c1y = Math.round(H * 0.24), c1r = Math.round(250 * k);
+  const c2x = Math.round(W * 0.88), c2y = Math.round(H * 0.86), c2r = Math.round(150 * k);
+  const c3x = Math.round(W * 0.60), c3y = Math.round(H * 0.92), c3r = Math.round(86 * k);
+  const titleSize = Math.round(78 * k);
+  const kickSize = Math.round(30 * k);
+  const subSize = Math.round(34 * k);
+  const ctaSize = Math.round(32 * k);
+  const ctaH = Math.round(72 * k);
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
 <defs>
 <linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${bg1}"/><stop offset="1" stop-color="${bg2}"/></linearGradient>
-<radialGradient id="r" cx=".78" cy=".28" r=".6"><stop offset="0" stop-color="#ffffff" stop-opacity=".38"/><stop offset="1" stop-color="#ffffff" stop-opacity="0"/></radialGradient>
+<radialGradient id="r" cx=".74" cy=".3" r=".62"><stop offset="0" stop-color="#ffffff" stop-opacity=".34"/><stop offset="1" stop-color="#ffffff" stop-opacity="0"/></radialGradient>
 </defs>
-<rect width="1352" height="480" fill="url(#g)"/>
-<rect width="1352" height="480" fill="url(#r)"/>
-<circle cx="1140" cy="96" r="210" fill="${deco}" opacity=".2"/>
-<circle cx="1210" cy="404" r="132" fill="#ffffff" opacity=".12"/>
-<circle cx="966" cy="446" r="76" fill="${deco}" opacity=".28"/>
-<rect x="0" y="0" width="12" height="480" fill="${deco}"/>
-${kicker ? `<text x="88" y="132" font-family="Segoe UI,Arial,sans-serif" font-size="27" font-weight="700" letter-spacing="5" fill="${deco}">${esc(kicker.toUpperCase())}</text>` : ''}
-<text x="88" y="${kicker ? 232 : 196}" font-family="Segoe UI,Arial,sans-serif" font-size="70" font-weight="800" fill="#ffffff">${esc(title)}</text>
-${sub ? `<text x="88" y="${kicker ? 300 : 262}" font-family="Segoe UI,Arial,sans-serif" font-size="31" font-weight="500" fill="#dbeafe">${esc(sub)}</text>` : ''}
-${cta ? `<g><rect x="88" y="${kicker ? 344 : 306}" width="${40 + cta.length * 19}" height="70" rx="35" fill="${deco}"/><text x="${108 + cta.length * 9.5}" y="${kicker ? 391 : 353}" font-family="Segoe UI,Arial,sans-serif" font-size="30" font-weight="700" fill="#1f2937" text-anchor="middle">${esc(cta)}</text></g>` : ''}
+<rect width="${W}" height="${H}" fill="url(#g)"/>
+<rect width="${W}" height="${H}" fill="url(#r)"/>
+<circle cx="${c1x}" cy="${c1y}" r="${c1r}" fill="${deco}" opacity=".2"/>
+<circle cx="${c2x}" cy="${c2y}" r="${c2r}" fill="#ffffff" opacity=".12"/>
+<circle cx="${c3x}" cy="${c3y}" r="${c3r}" fill="${deco}" opacity=".26"/>
+<rect x="0" y="0" width="${Math.round(12 * k)}" height="${H}" fill="${deco}"/>
+${kicker ? `<text x="${x}" y="${Math.round(H * (cta ? 0.3 : 0.34))}" font-family="Segoe UI,Arial,sans-serif" font-size="${kickSize}" font-weight="700" letter-spacing="${Math.round(5 * k)}" fill="${deco}">${esc(kicker.toUpperCase())}</text>` : ''}
+<text x="${x}" y="${Math.round(H * (cta ? 0.52 : 0.58))}" font-family="Segoe UI,Arial,sans-serif" font-size="${titleSize}" font-weight="800" fill="#ffffff">${esc(title)}</text>
+${sub ? `<text x="${x}" y="${Math.round(H * (cta ? 0.68 : 0.75))}" font-family="Segoe UI,Arial,sans-serif" font-size="${subSize}" font-weight="500" fill="#dbeafe">${esc(sub)}</text>` : ''}
+${cta ? `<g><rect x="${x}" y="${Math.round(H * 0.76)}" width="${Math.round(44 + cta.length * 20 * k)}" height="${ctaH}" rx="${Math.round(ctaH / 2)}" fill="${deco}"/><text x="${x + Math.round(22 + cta.length * 10 * k)}" y="${Math.round(H * 0.76 + ctaH * 0.68)}" font-family="Segoe UI,Arial,sans-serif" font-size="${ctaSize}" font-weight="700" fill="#1f2937" text-anchor="middle">${esc(cta)}</text></g>` : ''}
 </svg>`;
 }
 
