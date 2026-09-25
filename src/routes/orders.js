@@ -222,7 +222,7 @@ router.post('/:id/cancel', authRequired, async (req, res) => {
   if (!isAdmin && String(o.user_id) !== String(req.user.id)) return res.status(403).json({ error: 'Khong co quyen' });
   if (!['pending', 'confirmed'].includes(o.status)) return res.status(400).json({ error: 'Chi huy duoc don pending/confirmed' });
   await pool.query("UPDATE orders SET status='cancelled', cancelled_at=NOW(6) WHERE id=?", [o.id]);
-  await pool.query('INSERT INTO order_status_history (order_id,from_status,to_status,note,changed_by) VALUES (?,?,?,?,?)', [o.id, o.status, 'cancelled', req.body.note || 'Khach huy', req.user.id]);
+  await pool.query('INSERT INTO order_status_history (order_id,from_status,to_status,note,changed_by) VALUES (?,?,?,?,?)', [o.id, o.status, 'cancelled', req.body?.note || 'Khach huy', req.user.id]);
   res.json({ ok: true });
 });
 

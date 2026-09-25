@@ -115,7 +115,7 @@ router.put('/addresses/:addrId', authRequired, async (req, res) => {
   if (String(a.user_id) !== String(req.user.id) && !req.user.roles.includes('super_admin') && !req.user.permissions.includes('users.write'))
     return res.status(403).json({ error: 'Khong co quyen' });
   const f = { ...a, ...req.body };
-  if (req.body.is_default) await pool.query('UPDATE user_addresses SET is_default=FALSE WHERE user_id=?', [a.user_id]);
+  if (req.body?.is_default) await pool.query('UPDATE user_addresses SET is_default=FALSE WHERE user_id=?', [a.user_id]);
   await pool.query(`UPDATE user_addresses SET label=?,recipient_name=?,phone=?,province_code=?,province_name=?,district_code=?,district_name=?,ward_code=?,ward_name=?,address_line=?,postal_code=?,is_default=? WHERE id=?`,
     [f.label, f.recipient_name, f.phone, f.province_code, f.province_name, f.district_code, f.district_name, f.ward_code, f.ward_name, f.address_line, f.postal_code, !!f.is_default, a.id]);
   const [[row]] = await pool.query('SELECT * FROM user_addresses WHERE id=?', [a.id]);

@@ -48,11 +48,11 @@ router.get('/categories/tree', async (req, res) => {
   res.json(roots);
 });
 router.post('/categories', authRequired, requirePerm('categories.write'), async (req, res) => {
-  const { parent_id, name, description, image_media_id, sort_order, status } = req.body;
+  const { parent_id, name, description, image_media_id, icon, sort_order, status } = req.body;
   if (!name) return res.status(400).json({ error: 'Thieu name' });
   const slug = slugify(req.body.slug || name);
-  const [r] = await pool.query('INSERT INTO categories (parent_id,name,slug,description,image_media_id,sort_order,status) VALUES (?,?,?,?,?,?,?)',
-    [parent_id || null, name, slug, description || null, image_media_id || null, sort_order || 0, status || 'active']);
+  const [r] = await pool.query('INSERT INTO categories (parent_id,name,slug,description,image_media_id,icon,sort_order,status) VALUES (?,?,?,?,?,?,?,?)',
+    [parent_id || null, name, slug, description || null, image_media_id || null, icon || null, sort_order || 0, status || 'active']);
   const [[row]] = await pool.query('SELECT * FROM categories WHERE id=?', [r.insertId]);
   res.status(201).json(row);
 });
@@ -60,8 +60,8 @@ router.put('/categories/:id', authRequired, requirePerm('categories.write'), asy
   const [[c]] = await pool.query('SELECT * FROM categories WHERE id=?', [req.params.id]);
   if (!c) return res.status(404).json({ error: 'Khong tim thay' });
   const f = { ...c, ...req.body };
-  await pool.query('UPDATE categories SET parent_id=?,name=?,slug=?,description=?,image_media_id=?,sort_order=?,status=? WHERE id=?',
-    [f.parent_id, f.name, f.slug, f.description, f.image_media_id, f.sort_order, f.status, c.id]);
+  await pool.query('UPDATE categories SET parent_id=?,name=?,slug=?,description=?,image_media_id=?,icon=?,sort_order=?,status=? WHERE id=?',
+    [f.parent_id, f.name, f.slug, f.description, f.image_media_id, f.icon || null, f.sort_order, f.status, c.id]);
   const [[row]] = await pool.query('SELECT * FROM categories WHERE id=?', [c.id]);
   res.json(row);
 });
@@ -84,7 +84,7 @@ router.get('/products', authOptional, async (req, res) => {
   const w = where.length ? 'WHERE ' + where.join(' AND ') : '';
   const [[{ total }]] = await pool.query(`SELECT COUNT(*) total FROM products pr ${w}`, p);
   const [rows] = await pool.query(`SELECT pr.*, b.name brand_name,
-    (SELECT JSON_ARRAYAGG(JSON_OBJECT('id',pi.id,'media_id',pi.media_id,'is_primary',pi.is_primary,'sort_order',pi.sort_order)) FROM product_images pi WHERE pi.product_id=pr.id) images,
+    (SELECT JSON_ARRAYAGG(JSON_OBJECT('id',pi.id,'media_id',pi.media_id,'is_primary',pi.is_primary,'sort_order',pi.sort_order,'object_key',mf.object_key)) FROM product_images pi LEFT JOIN media_files mf ON mf.id=pi.media_id WHERE pi.product_id=pr.id) images,
     (SELECT COUNT(*) FROM product_variants v WHERE v.product_id=pr.id) variant_count
     FROM products pr LEFT JOIN brands b ON b.id=pr.brand_id ${w} ORDER BY pr.created_at DESC LIMIT ? OFFSET ?`, [...p, limit, offset]);
   res.json({ data: rows, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } });

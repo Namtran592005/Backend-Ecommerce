@@ -102,8 +102,20 @@ router.get('/settings', authRequired, requirePerm('settings.write'), async (req,
   res.json(rows);
 });
 router.put('/settings/:key', authRequired, requirePerm('settings.write'), async (req, res) => {
+  const key = req.params.key;
+  let value = req.body.value;
+  // Menu shop: chuẩn hóa [{label, link}] + luôn công khai cho web đọc
+  if (key === 'shop.menu') {
+    if (!Array.isArray(value)) return res.status(400).json({ error: 'Menu phai la danh sach' });
+    value = value.filter((m) => m && m.label && m.link).slice(0, 12)
+      .map((m) => ({ label: String(m.label).slice(0, 60), link: String(m.link).slice(0, 200) }));
+    await pool.query(`INSERT INTO system_settings (setting_key,setting_value,is_public,updated_by) VALUES (?,?,TRUE,?)
+      ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value), is_public=TRUE, updated_by=VALUES(updated_by)`,
+      [key, JSON.stringify(value), req.user.id]);
+    return res.json({ ok: true, value });
+  }
   await pool.query('INSERT INTO system_settings (setting_key,setting_value,updated_by) VALUES (?,?,?) ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value), updated_by=VALUES(updated_by)',
-    [req.params.key, JSON.stringify(req.body.value), req.user.id]);
+    [key, JSON.stringify(value), req.user.id]);
   res.json({ ok: true });
 });
 router.get('/notifications', authRequired, async (req, res) => {

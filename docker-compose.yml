@@ -1,5 +1,11 @@
-# UniMate production stack: MySQL + backend API + Caddy (HTTPS tự động)
-# Chạy với file env riêng:  docker compose --env-file .env.docker up -d --build
+# UniMate stack — 1 VPS + Caddy ngoài, mỗi service 1 port.
+#
+# CÁCH 1 (mặc định):  docker compose --env-file .env.docker up -d --build
+#   MySQL/MinIO nội bộ; backend :3000, admin :8080, client :8081 mở trên BIND_ADDR
+#   (mặc định 127.0.0.1). Caddy NGOÀI do bạn quản lý trỏ 3 domain về 3 port này.
+# CÁCH 2 (all-in-one): thêm  --profile edge  để bật Caddy nội bộ (HTTPS tự động,
+#   dùng API_DOMAIN/ADMIN_DOMAIN/CLIENT_DOMAIN).
+# Nhiều máy: service nào ở máy nào thì đổi *_HOST/*_URL tương ứng + mở BIND_ADDR=0.0.0.0
 # (compose mặc định đọc .env của dev nên BẮT BUỘC chỉ định --env-file)
 
 name: unimate
@@ -26,7 +32,7 @@ services:
     restart: unless-stopped
     networks:
       - appnet
-    # MySQL chỉ nghe mạng nội bộ Docker. Muốn xem DB từ ngoài thì mở dòng dưới (chỉ 127.0.0.1):
+    # Backend ở máy khác mới cần mở: đổi BIND_ADDR=0.0.0.0 + DB_HOST=<ip-may-mysql>
     # ports:
     #   - "127.0.0.1:3306:3306"
 
@@ -35,8 +41,8 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3000
-      DB_HOST: mysql
-      DB_PORT: 3306
+      DB_HOST: ${DB_HOST:-mysql}
+      DB_PORT: ${DB_PORT:-3306}
       DB_USER: ${MYSQL_USER:-unimate}
       DB_PASSWORD: ${MYSQL_PASSWORD}
       DB_NAME: unimate
@@ -44,12 +50,12 @@ services:
       JWT_EXPIRES_IN: 15m
       JWT_REFRESH_EXPIRES_IN: 30d
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS}
-      # Mặc định 1 (Caddy có HTTPS thật). Test local HTTP thuần thì đặt 0 trong .env.docker
+      # Sau Caddy HTTPS thật thì =1; test HTTP thuần thì =0 trong .env.docker
       FORCE_HTTPS: ${FORCE_HTTPS:-1}
       TRUST_PROXY: 1
       COOKIE_SECURE: ${COOKIE_SECURE:-1}
-      # Object storage (MinIO, S3-compatible). Thiếu các biến này → API /media/upload trả 503
-      S3_ENDPOINT: http://minio:9000
+      # Object storage (MinIO nội bộ hoặc S3/R2 ngoài). Thiếu → API /media/upload trả 503
+      S3_ENDPOINT: ${S3_ENDPOINT:-http://minio:9000}
       S3_REGION: us-east-1
       S3_BUCKET: ${S3_BUCKET:-unimate}
       S3_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
@@ -65,15 +71,16 @@ services:
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASS: ${SMTP_PASS:-}
       SMTP_FROM: ${SMTP_FROM:-}
+    ports:
+      - "${BIND_ADDR:-127.0.0.1}:3000:3000"
     depends_on:
       mysql:
         condition: service_healthy
     restart: unless-stopped
     networks:
       - appnet
-    # Không publish port 3000 ra ngoài — chỉ Caddy được gọi vào
 
-  # Kho object storage cho ảnh sản phẩm/banner (tương thích S3, thay R2/AWS được qua S3_* )
+  # Kho object storage cho ảnh/video/tệp (tương thích S3, thay R2/AWS được qua S3_*)
   minio:
     image: quay.io/minio/minio:latest
     command: server /data --console-address ":9001"
@@ -82,32 +89,48 @@ services:
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
     volumes:
       - minio-data:/data
+    ports:
+      - "${BIND_ADDR:-127.0.0.1}:9000:9000"
+      - "127.0.0.1:9001:9001"
     restart: unless-stopped
     networks:
       - appnet
-    # Console quản trị: chỉ mở trên máy chủ (http://127.0.0.1:9001)
-    ports:
-      - "127.0.0.1:9001:9001"
-    # File công khai đi qua Caddy /files (có HTTPS). Muốn truy cập :9000 trực tiếp thì mở dòng dưới:
-    # ports:
-    #   - "127.0.0.1:9000:9000"
 
-  # Trang quan tri (build tu ../admin, phuc vu tinh qua nginx, ra ngoai bang Caddy :8080)
+  # Trang quan tri (build tu ../admin, nginx). Đổi ADMIN_API_BASE phải build lại
   admin:
     build:
       context: ../admin
       args:
         VITE_API_BASE: ${ADMIN_API_BASE:-https://api.example.com/api}
+    ports:
+      - "${BIND_ADDR:-127.0.0.1}:8080:80"
     restart: unless-stopped
     networks:
       - appnet
 
+  # Web ban hang (build tu ../client, nginx). Đổi CLIENT_*_BASE phải build lại
+  client:
+    build:
+      context: ../client
+      args:
+        VITE_API_BASE: ${CLIENT_API_BASE:-https://api.example.com/api}
+        VITE_FILES_BASE: ${CLIENT_FILES_BASE:-https://api.example.com/files/unimate}
+    ports:
+      - "${BIND_ADDR:-127.0.0.1}:8081:80"
+    restart: unless-stopped
+    networks:
+      - appnet
+
+  # Caddy NỘI BỘ — chỉ chạy với --profile edge (all-in-one, HTTPS tự động).
+  # Có Caddy ngoài rồi thì KHÔNG dùng service này (tránh chiếm 80/443).
   caddy:
+    profiles: ["edge"]
     image: caddy:2-alpine
     ports:
       - "80:80"
       - "443:443"
       - "8080:8080"
+      - "8081:8081"
     volumes:
       - ./docker/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy-data:/data
@@ -115,9 +138,11 @@ services:
     environment:
       API_DOMAIN: ${API_DOMAIN}
       ADMIN_DOMAIN: ${ADMIN_DOMAIN:-http://127.0.0.1:8080}
+      CLIENT_DOMAIN: ${CLIENT_DOMAIN:-http://127.0.0.1:8081}
     depends_on:
       - backend
       - admin
+      - client
     restart: unless-stopped
     networks:
       - appnet

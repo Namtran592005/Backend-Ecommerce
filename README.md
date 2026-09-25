@@ -1,5 +1,7 @@
 # UniMate Backend — API Sàn Bán Hàng
 
+![UniMate](docs/logo-light.png)
+
 Hệ thống backend (máy chủ xử lý logic + lưu trữ) cho website bán hàng UniMate:
 quản lý sản phẩm, kho, đơn hàng, thanh toán, vận chuyển, khuyến mãi đến báo cáo.
 Frontend (web khách / trang quản trị) gọi vào đây qua **REST API** (chuẩn giao tiếp

@@ -36,7 +36,14 @@ function corsOptions() {
   const raw = process.env.ALLOWED_ORIGINS || '';
   const list = raw.split(',').map(s => s.trim()).filter(Boolean);
   // Dev: cho phép localhost. Prod: BẮT BUỘC khai báo domain frontend.
-  const devDefaults = ['http://localhost:3000', 'http://localhost:5173', 'http://127.0.0.1:5173'];
+  // Phải có đủ cả localhost và 127.0.0.1 vì 2 dạng này là origin khác nhau.
+  const devDefaults = [
+    'http://localhost:3000', 'http://127.0.0.1:3000',
+    'http://localhost:5173', 'http://127.0.0.1:5173',
+    'http://localhost:5174', 'http://127.0.0.1:5174',
+    'http://localhost:8080', 'http://127.0.0.1:8080',
+    'http://localhost:8081', 'http://127.0.0.1:8081',
+  ];
   const allow = list.length ? list : devDefaults;
   return {
     origin: (origin, cb) => {

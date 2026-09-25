@@ -1284,10 +1284,10 @@ WHERE r.code = 'marketing'
 INSERT INTO payment_methods (code,name,provider,type,is_active,sort_order) VALUES
 ('cod','Thanh toán khi nhận hàng',NULL,'cod',TRUE,1),
 ('bank_transfer','Chuyển khoản ngân hàng',NULL,'bank_transfer',TRUE,2),
-('vnpay','VNPay','VNPay','gateway',FALSE,3),
-('momo','MoMo','MoMo','wallet',FALSE,4),
-('zalopay','ZaloPay','ZaloPay','wallet',FALSE,5),
-('card','Thẻ ngân hàng','Gateway','card',FALSE,6);
+('vnpay','VNPay','VNPay','gateway',TRUE,3),
+('momo','MoMo','MoMo','wallet',TRUE,4),
+('zalopay','ZaloPay','ZaloPay','wallet',TRUE,5),
+('card','Thẻ ngân hàng','Gateway','card',TRUE,6);
 
 INSERT INTO shipping_providers (code,name,is_active) VALUES
 ('manual','Vận chuyển thủ công',TRUE),

@@ -1,8 +1,45 @@
 // Nap du lieu DEMO chuan cho toan he thong (xoa het du lieu cu tru RBAC/seed goc).
 // Chay: npm run db:seed-demo (local) hoac trong container backend.
 const bcrypt = require('bcryptjs');
+const zlib = require('zlib');
 const { pool } = require('../src/config/db');
 const storage = require('../src/config/storage');
+
+// Ve PNG gradient thuan Node (khong can thu vien anh)
+const CRC_T = (() => {
+  const t = new Int32Array(256);
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    t[n] = c;
+  }
+  return t;
+})();
+const crc32 = (buf) => {
+  let c = -1;
+  for (let i = 0; i < buf.length; i++) c = CRC_T[(c ^ buf[i]) & 0xff] ^ (c >>> 8);
+  return (c ^ -1) >>> 0;
+};
+const pngChunk = (type, data) => {
+  const len = Buffer.alloc(4); len.writeUInt32BE(data.length);
+  const td = Buffer.concat([Buffer.from(type), data]);
+  const crc = Buffer.alloc(4); crc.writeUInt32BE(crc32(td));
+  return Buffer.concat([len, td, crc]);
+};
+function gradientPNG(c1, c2, w = 320, h = 200) {
+  const raw = Buffer.alloc((w * 3 + 1) * h);
+  for (let y = 0; y < h; y++) {
+    raw[y * (w * 3 + 1)] = 0;
+    for (let x = 0; x < w; x++) {
+      const k = (x / w + y / h) / 2;
+      raw.set([Math.round(c1[0] + (c2[0] - c1[0]) * k), Math.round(c1[1] + (c2[1] - c1[1]) * k), Math.round(c1[2] + (c2[2] - c1[2]) * k)], y * (w * 3 + 1) + 1 + x * 3);
+    }
+  }
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(w, 0); ihdr.writeUInt32BE(h, 4);
+  ihdr[8] = 8; ihdr[9] = 2;
+  return Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), pngChunk('IHDR', ihdr), pngChunk('IDAT', zlib.deflateSync(raw)), pngChunk('IEND', Buffer.alloc(0))]);
+}
 
 const q = (sql, p) => pool.query(sql, p || []);
 
@@ -18,7 +55,15 @@ const WIPE = ['review_votes', 'review_images', 'reviews', 'return_status_history
   'user_sessions', 'user_roles', 'user_addresses', 'user_profiles', 'users', 'audit_logs', 'admin_activity_logs',
   'campaign_products', 'campaigns', 'banners', 'shipping_methods'];
 
-const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
+const PNG_IMGS = {
+  'demo-ao-thun.png': [[15, 76, 129], [47, 127, 208]],
+  'demo-noi-inox.png': [[30, 41, 59], [100, 116, 139]],
+  'demo-banner-sale.png': [[180, 83, 9], [251, 191, 36]],
+  'demo-jeans.png': [[30, 58, 138], [129, 140, 248]],
+  'demo-den.png': [[124, 58, 237], [196, 181, 253]],
+  'demo-sac.png': [[4, 120, 87], [110, 231, 183]],
+  'demo-tainghe.png': [[190, 24, 93], [249, 168, 212]],
+};
 
 async function createUser({ email, phone, pw, role, first, last, addr }) {
   const hash = await bcrypt.hash(pw, 10);
@@ -129,11 +174,12 @@ async function createOrder({ num, userId, status, payStatus, payCode, items, cou
   const demoImgs = {};
   try {
     await storage.ensureBucket();
-    for (const name of ['demo-ao-thun.png', 'demo-noi-inox.png', 'demo-banner-sale.png']) {
+    for (const [name, [c1, c2]] of Object.entries(PNG_IMGS)) {
+      const buf = gradientPNG(c1, c2);
       const key = 'demo/' + name;
-      await storage.putObject(key, PNG, 'image/png');
+      await storage.putObject(key, buf, 'image/png');
       const [r] = await q(`INSERT INTO media_files (storage_provider, object_key, original_name, mime_type, size_bytes)
-        VALUES ('minio',?,?,?,?)`, [key, name, 'image/png', PNG.length]);
+        VALUES ('minio',?,?,?,?)`, [key, name, 'image/png', buf.length]);
       demoImgs[name] = r.insertId;
     }
   } catch (e) { console.log('Bo qua anh demo (thieu S3):', e.message); }
@@ -142,11 +188,11 @@ async function createOrder({ num, userId, status, payStatus, payCode, items, cou
   console.log('== Danh muc / thuong hieu / thuoc tinh ==');
   for (const [name, slug] of [['UniWear', 'uniwear'], ['CasaHome', 'casahome'], ['TechZone', 'techzone']])
     await q('INSERT INTO brands (name, slug, status) VALUES (?,?,\'active\')', [name, slug]);
-  const [cFashion] = await q("INSERT INTO categories (name, slug, sort_order, status) VALUES ('Thoi trang','thoi-trang',1,'active')");
+  const [cFashion] = await q("INSERT INTO categories (name, slug, icon, sort_order, status) VALUES ('Thoi trang','thoi-trang','bi-bag',1,'active')");
   const fashionId = cFashion.insertId;
   const catIds = { fashion: fashionId };
-  for (const [name, slug, parent, sort] of [['Ao', 'ao', fashionId, 1], ['Quan', 'quan', fashionId, 2], ['Gia dung', 'gia-dung', null, 2], ['Phu kien', 'phu-kien', null, 3]]) {
-    const [r] = await q('INSERT INTO categories (parent_id, name, slug, sort_order, status) VALUES (?,?,?,?,\'active\')', [parent, name, slug, sort]);
+  for (const [name, slug, parent, sort, icon] of [['Ao', 'ao', fashionId, 1, 'bi-tag'], ['Quan', 'quan', fashionId, 2, 'bi-tags'], ['Gia dung', 'gia-dung', null, 2, 'bi-house'], ['Phu kien', 'phu-kien', null, 3, 'bi-headphones']]) {
+    const [r] = await q('INSERT INTO categories (parent_id, name, slug, icon, sort_order, status) VALUES (?,?,?,?,?,\'active\')', [parent, name, slug, icon, sort]);
     catIds[slug] = r.insertId;
   }
   const [aColor] = await q("INSERT INTO attributes (name, code, display_type) VALUES ('Mau sac','color','color')");
@@ -186,13 +232,13 @@ async function createOrder({ num, userId, status, payStatus, payCode, items, cou
     ['ATS-DO-M', 'Do / M', 250000, [colorIds['Do'], sizeIds['M']]],
     ['ATS-XANH-L', 'Xanh / L', 250000, [colorIds['Xanh'], sizeIds['L']]],
     ['ATS-DEN-S', 'Den / S', 240000, [colorIds['Den'], sizeIds['S']]]] });
-  const p2 = await addProduct({ brand: 'uniwear', cats: ['quan'], attrs: ['size'], name: 'Quan jeans slim', slug: 'quan-jeans-slim', price: 550000, desc: 'Jeans co giãn', variants: [
+  const p2 = await addProduct({ brand: 'uniwear', cats: ['quan'], attrs: ['size'], name: 'Quan jeans slim', slug: 'quan-jeans-slim', price: 550000, desc: 'Jeans co giãn', img: 'demo-jeans.png', variants: [
     ['QJN-XANH-32', 'Xanh / 32', 550000, [colorIds['Xanh'], sizeIds['L']]],
     ['QJN-DEN-30', 'Den / 30', 550000, [colorIds['Den'], sizeIds['M']]]] });
   const p3 = await addProduct({ brand: 'casahome', cats: ['gia-dung'], name: 'Noi inox 5L', slug: 'noi-inox-5l', price: 890000, desc: 'Inox 304 đáy 5 lớp', img: 'demo-noi-inox.png', variants: [['NOI-5L', '5L', 890000, []]] });
-  const p4 = await addProduct({ brand: 'casahome', cats: ['gia-dung'], name: 'Den ban LED', slug: 'den-ban-led', price: 320000, desc: 'Chống cận 3 màu', variants: [['DEN-LED', 'Trắng', 320000, []]] });
-  const p5 = await addProduct({ brand: 'techzone', cats: ['phu-kien'], name: 'Sac du phong 20000mAh', slug: 'sac-du-phong-20k', price: 490000, desc: 'Sạc nhanh 22.5W', variants: [['SAC-20K', 'Đen', 490000, []]] });
-  const p6 = await addProduct({ brand: 'techzone', cats: ['phu-kien'], name: 'Tai nghe bluetooth', slug: 'tai-nghe-bluetooth', price: 750000, desc: 'Chống ồn ENC', variants: [['TNG-BT', 'Đen', 750000, []]] });
+  const p4 = await addProduct({ brand: 'casahome', cats: ['gia-dung'], name: 'Den ban LED', slug: 'den-ban-led', price: 320000, desc: 'Chống cận 3 màu', img: 'demo-den.png', variants: [['DEN-LED', 'Trắng', 320000, []]] });
+  const p5 = await addProduct({ brand: 'techzone', cats: ['phu-kien'], name: 'Sac du phong 20000mAh', slug: 'sac-du-phong-20k', price: 490000, desc: 'Sạc nhanh 22.5W', img: 'demo-sac.png', variants: [['SAC-20K', 'Đen', 490000, []]] });
+  const p6 = await addProduct({ brand: 'techzone', cats: ['phu-kien'], name: 'Tai nghe bluetooth', slug: 'tai-nghe-bluetooth', price: 750000, desc: 'Chống ồn ENC', img: 'demo-tainghe.png', variants: [['TNG-BT', 'Đen', 750000, []]] });
 
   console.log('== Kho ==');
   await q("INSERT INTO warehouses (code, name, address, status) VALUES ('HCM','Kho TP.HCM','Quận 7, TP.HCM','active'),('HN','Kho Ha Noi','Cầu Giấy, Ha Noi','active')");
@@ -264,6 +310,14 @@ async function createOrder({ num, userId, status, payStatus, payCode, items, cou
   await q(`INSERT INTO notifications (user_id, type, title, body) VALUES
     (?, 'order', 'Đơn mới', 'Có đơn hàng mới cần xác nhận'),
     (NULL, 'system', 'Bảo trì', 'Hệ thống bảo trì lúc 2h sáng Chủ nhật')`, [adminId]);
+  await q(`INSERT INTO system_settings (setting_key, setting_value, description, is_public) VALUES
+    ('shop.menu', ?, 'Menu web bán hàng', TRUE)
+    ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value), is_public=TRUE`,
+    [JSON.stringify([
+      { label: 'Hàng Mới', link: '/san-pham' },
+      { label: 'Bán Chạy', link: '/san-pham?sap-xep=gia-giam' },
+      { label: 'Ưu Đãi Đặc Biệt', link: '/khuyen-mai' },
+    ])]);
 
   const [[u]] = await q('SELECT COUNT(*) n FROM users');
   const [[o]] = await q('SELECT COUNT(*) n FROM orders');

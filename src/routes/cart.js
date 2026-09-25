@@ -23,7 +23,9 @@ async function getOrCreateCart({ user_id, session_id }) {
 async function cartDetail(cartId) {
   const [[cart]] = await pool.query('SELECT * FROM carts WHERE id=?', [cartId]);
   if (!cart) return null;
-  const [items] = await pool.query(`SELECT ci.*, v.sku, v.name variant_name, v.price, p.name product_name, p.id product_id
+  const [items] = await pool.query(`SELECT ci.*, v.sku, v.name variant_name, v.price, p.name product_name, p.id product_id,
+    (SELECT mf.object_key FROM product_images pi JOIN media_files mf ON mf.id=pi.media_id
+     WHERE pi.product_id=p.id ORDER BY pi.is_primary DESC, pi.sort_order LIMIT 1) image_key
     FROM cart_items ci JOIN product_variants v ON v.id=ci.variant_id JOIN products p ON p.id=v.product_id WHERE ci.cart_id=?`, [cartId]);
   const subtotal = items.reduce((s, i) => s + Number(i.price) * i.quantity, 0);
   return { ...cart, items, subtotal };
@@ -33,7 +35,7 @@ async function cartDetail(cartId) {
 router.get('/', authOptional, async (req, res) => {
   try {
     const user_id = req.user ? req.user.id : null;
-    const session_id = req.query.session_id || req.body.session_id || null;
+    const session_id = req.query.session_id || req.body?.session_id || null;
     const cart = await getOrCreateCart({ user_id, session_id });
     res.json(await cartDetail(cart.id));
   } catch (e) { res.status(400).json({ error: e.message }); }

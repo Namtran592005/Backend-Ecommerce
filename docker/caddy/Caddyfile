@@ -21,3 +21,7 @@
 {$ADMIN_DOMAIN} {
 	reverse_proxy admin:80
 }
+
+{$CLIENT_DOMAIN} {
+	reverse_proxy client:80
+}

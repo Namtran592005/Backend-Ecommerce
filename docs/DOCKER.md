@@ -1,8 +1,27 @@
 # Triển khai Docker — UniMate (1 máy chủ là chạy)
 
-Stack 5 container: **MySQL 8.0** (tự tạo schema + seed) → **backend** (Node 22,
-tự seed admin) → **MinIO** (kho ảnh/video/tệp S3) → **admin** (trang quản trị,
-nginx) → **Caddy** (HTTPS tự động + `/files` + trang admin).
+Stack 6 container: **MySQL 8.0** (tự tạo schema + seed) → **backend** (Node 22,
+tự seed admin, cổng 3000) → **MinIO** (kho ảnh/video/tệp S3, cổng 9000) →
+**admin** (trang quản trị, nginx, cổng 8080) → **client** (web bán hàng, nginx,
+cổng 8081) → **Caddy** (chỉ chạy với `--profile edge`).
+
+## Mô hình mạng
+
+- **Mặc định: 1 VPS + Caddy NGOÀI của bạn.** Mỗi service mở 1 cổng trên
+  `BIND_ADDR` (mặc định `127.0.0.1`). Caddy ngoài trỏ 3 domain về 3 cổng +
+  lo HTTPS. Ví dụ Caddyfile:
+  ```caddy
+  api.example.com   { reverse_proxy 127.0.0.1:3000 }
+  admin.example.com { reverse_proxy 127.0.0.1:8080 }
+  www.example.com   { reverse_proxy 127.0.0.1:8081 }
+  ```
+  (Kèm `/files/* → 127.0.0.1:9000` ở domain API để phục vụ ảnh, khớp `S3_PUBLIC_URL`.)
+- **All-in-one:** thêm `--profile edge` để bật Caddy nội bộ (HTTPS tự động,
+  dùng `API_DOMAIN/ADMIN_DOMAIN/CLIENT_DOMAIN`).
+- **Nhiều máy:** service nào ở máy nào thì đổi `*_HOST/*_URL` tương ứng
+  (`DB_HOST`, `S3_ENDPOINT`, `S3_PUBLIC_URL`, `ADMIN_API_BASE`...), đặt
+  `BIND_ADDR=0.0.0.0` + firewall cho máy cần gọi qua LAN. Đổi `*_API_BASE`
+  phải build lại image frontend (`up -d --build admin/client`).
 
 ## 1. Máy chủ (Ubuntu 22.04+)
 ```bash
@@ -45,6 +64,11 @@ SMTP_FROM=UniMate <shop@example.com>
 # Trang quan tri (doi ADMIN_API_BASE phai build lai: up -d --build admin)
 ADMIN_DOMAIN=admin.example.com
 ADMIN_API_BASE=https://api.example.com/api
+# Web ban hang: domain that (VD www.example.com) hoac test noi bo http://127.0.0.1:8081
+CLIENT_DOMAIN=www.example.com
+# API + file ma web goi (phai khop API_DOMAIN). Doi phai build lai client
+CLIENT_API_BASE=https://api.example.com/api
+CLIENT_FILES_BASE=https://api.example.com/files/unimate
 ```
 > Mặc định `FORCE_HTTPS=1, COOKIE_SECURE=1` (đúng cho HTTPS thật, đừng sửa).
 > Muốn dùng AWS S3/R2 thay MinIO: sửa các biến `S3_*` của backend là xong.
@@ -60,6 +84,7 @@ Login admin `POST .../api/auth/login`
 `{ "identifier": "admin@example.com", "password": "Admin123!" }`
 → **đổi mật khẩu ngay** (`PUT /api/auth/password`).
 Mở trang quản trị: `https://admin.example.com` (đăng nhập tài khoản nhân sự).
+Mở web bán hàng: `https://www.example.com`.
 
 ## 5. Vận hành
 ```bash
@@ -77,8 +102,8 @@ docker compose --env-file .env.docker down -v && docker compose --env-file .env.
 docker cp db/seed-demo.js unimate-backend-1:/app/db/seed-demo.js
 docker exec unimate-backend-1 node db/seed-demo.js
 ```
-- MySQL không mở port ra ngoài · Caddy tự xin/gia hạn Let's Encrypt.
-- File công khai: `https://API_DOMAIN/files/...` · Console MinIO: `http://127.0.0.1:9001` trên máy chủ.
+- MySQL không mở port ra ngoài (chỉ mở khi cần cho máy khác) · Caddy ngoài/loại edge tự xin/gia hạn Let's Encrypt.
+- File công khai: qua `/files` (Caddy ngoài hoặc profile edge) trỏ tới MinIO `:9000` · Console MinIO: `http://127.0.0.1:9001` trên máy chủ.
 - Test không cần domain: `API_DOMAIN=http://IP` + thêm `FORCE_HTTPS=0`, `COOKIE_SECURE=0`.
 
 ## 6. Sự cố thường gặp
@@ -90,3 +115,4 @@ docker exec unimate-backend-1 node db/seed-demo.js
 | `GET /api/...` 301 về `https://` khi test HTTP | Đang bật `FORCE_HTTPS=1` — test local thì đặt `FORCE_HTTPS=0`, `COOKIE_SECURE=0` |
 | Muốn nhập lại schema | Sửa `db/schema.sql` → `npm run db:init` (sinh lại `docker/mysql-init/01-schema.sql`, kèm fix key `object_key`) → `down -v` + `up -d` |
 | Quên mật khẩu trong `.env.docker` | Nằm trong file đó trên server; DB thì `docker exec` vào mysql reset |
+| Cổng 8080/8081 `connection refused` dù container Up | Proxy port Docker bị kẹt (Windows): `down` rồi `up -d` lại để dựng sạch |
