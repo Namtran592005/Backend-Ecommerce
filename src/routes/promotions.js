@@ -32,6 +32,30 @@ router.post('/promotions/:id/products', authRequired, requirePerm('promotions.wr
   for (const pid of product_ids || []) await pool.query('INSERT IGNORE INTO promotion_products (promotion_id,product_id) VALUES (?,?)', [req.params.id, pid]);
   res.json({ ok: true });
 });
+router.put('/promotions/:id/products', authRequired, requirePerm('promotions.write'), async (req, res) => {
+  const { product_ids } = req.body;
+  if (!Array.isArray(product_ids)) return res.status(400).json({ error: 'Thieu danh sach product_ids' });
+  await pool.query('DELETE FROM promotion_products WHERE promotion_id=?', [req.params.id]);
+  for (const pid of product_ids) await pool.query('INSERT IGNORE INTO promotion_products (promotion_id,product_id) VALUES (?,?)', [req.params.id, pid]);
+  res.json({ ok: true, count: product_ids.length });
+});
+router.patch('/promotions/:id/toggle', authRequired, requirePerm('promotions.write'), async (req, res) => {
+  const [[p]] = await pool.query('SELECT * FROM promotions WHERE id=?', [req.params.id]);
+  if (!p) return res.status(404).json({ error: 'Khong tim thay' });
+  const next = p.status === 'active' ? 'inactive' : 'active';
+  await pool.query('UPDATE promotions SET status=? WHERE id=?', [next, p.id]);
+  const [[row]] = await pool.query('SELECT * FROM promotions WHERE id=?', [p.id]);
+  res.json(row);
+});
+router.delete('/promotions/:id', authRequired, requirePerm('promotions.write'), async (req, res) => {
+  const [[p]] = await pool.query('SELECT * FROM promotions WHERE id=?', [req.params.id]);
+  if (!p) return res.status(404).json({ error: 'Khong tim thay' });
+  const [[{ n }]] = await pool.query('SELECT COUNT(*) n FROM promotion_products WHERE promotion_id=?', [p.id]);
+  if (n > 0 && req.query.force !== '1')
+    return res.status(409).json({ error: `Chuong trinh con ${n} san pham duoc gan. Xoa luon hoac them ?force=1`, can_force: true, product_count: n });
+  await pool.query('DELETE FROM promotions WHERE id=?', [p.id]);
+  res.json({ ok: true });
+});
 
 // Coupons
 router.get('/coupons', authRequired, requirePerm('promotions.read'), async (req, res) => {
@@ -57,6 +81,24 @@ router.put('/coupons/:id', authRequired, requirePerm('promotions.write'), async 
     [f.code, f.type, f.value, f.minimum_order_amount, f.maximum_discount_amount, f.usage_limit, f.usage_limit_per_user, f.starts_at, f.expires_at, f.status, c.id]);
   const [[row]] = await pool.query('SELECT * FROM coupons WHERE id=?', [c.id]);
   res.json(row);
+});
+router.patch('/coupons/:id/toggle', authRequired, requirePerm('promotions.write'), async (req, res) => {
+  const [[c]] = await pool.query('SELECT * FROM coupons WHERE id=?', [req.params.id]);
+  if (!c) return res.status(404).json({ error: 'Khong tim thay' });
+  const next = c.status === 'active' ? 'inactive' : 'active';
+  await pool.query('UPDATE coupons SET status=? WHERE id=?', [next, c.id]);
+  const [[row]] = await pool.query('SELECT * FROM coupons WHERE id=?', [c.id]);
+  res.json(row);
+});
+router.delete('/coupons/:id', authRequired, requirePerm('promotions.write'), async (req, res) => {
+  const [[c]] = await pool.query('SELECT * FROM coupons WHERE id=?', [req.params.id]);
+  if (!c) return res.status(404).json({ error: 'Khong tim thay' });
+  const [[{ n }]] = await pool.query('SELECT COUNT(*) n FROM coupon_redemptions WHERE coupon_id=?', [c.id]);
+  if (n > 0 && req.query.force !== '1')
+    return res.status(409).json({ error: `Ma da duoc dung ${n} lan. Tat di thay vi xoa, hoac them ?force=1 de xoa ca lich su`, can_force: true, redemption_count: n });
+  if (n > 0) await pool.query('DELETE FROM coupon_redemptions WHERE coupon_id=?', [c.id]);
+  await pool.query('DELETE FROM coupons WHERE id=?', [c.id]);
+  res.json({ ok: true, removed_redemptions: n });
 });
 // Validate coupon (public, de checkout dung)
 router.post('/coupons/validate', async (req, res) => {

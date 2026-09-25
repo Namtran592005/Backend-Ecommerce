@@ -53,7 +53,12 @@ router.post('/cash-flows', authRequired, requirePerm('payments.write'), async (r
 
 // CAMPAIGNS & BANNERS
 router.get('/campaigns', async (req, res) => {
-  const [rows] = await pool.query('SELECT * FROM campaigns ORDER BY id DESC');
+  if (req.query.all === '1') {
+    const [all] = await pool.query(`SELECT c.*, (SELECT COUNT(*) FROM campaign_products cp WHERE cp.campaign_id=c.id) product_count
+      FROM campaigns c ORDER BY c.id DESC`);
+    return res.json(all);
+  }
+  const [rows] = await pool.query("SELECT * FROM campaigns WHERE status='active' ORDER BY id DESC");
   res.json(rows);
 });
 router.post('/campaigns', authRequired, requirePerm('promotions.write'), async (req, res) => {
@@ -65,12 +70,45 @@ router.post('/campaigns', authRequired, requirePerm('promotions.write'), async (
   const [[row]] = await pool.query('SELECT * FROM campaigns WHERE id=?', [r.insertId]);
   res.status(201).json(row);
 });
+router.put('/campaigns/:id', authRequired, requirePerm('promotions.write'), async (req, res) => {
+  const [[c]] = await pool.query('SELECT * FROM campaigns WHERE id=?', [req.params.id]);
+  if (!c) return res.status(404).json({ error: 'Khong tim thay' });
+  const f = { ...c, ...req.body };
+  if (!f.name) return res.status(400).json({ error: 'Thieu name' });
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    await conn.query('UPDATE campaigns SET name=?,description=?,status=?,starts_at=?,ends_at=? WHERE id=?',
+      [f.name, f.description, f.status || 'draft', f.starts_at, f.ends_at, c.id]);
+    if (Array.isArray(req.body.product_ids)) {
+      await conn.query('DELETE FROM campaign_products WHERE campaign_id=?', [c.id]);
+      for (const pid of req.body.product_ids) await conn.query('INSERT IGNORE INTO campaign_products (campaign_id,product_id) VALUES (?,?)', [c.id, pid]);
+    }
+    await conn.commit();
+    const [[row]] = await pool.query('SELECT * FROM campaigns WHERE id=?', [c.id]);
+    res.json(row);
+  } catch (e) { await conn.rollback(); res.status(400).json({ error: e.message }); } finally { conn.release(); }
+});
+router.delete('/campaigns/:id', authRequired, requirePerm('promotions.write'), async (req, res) => {
+  const [[c]] = await pool.query('SELECT * FROM campaigns WHERE id=?', [req.params.id]);
+  if (!c) return res.status(404).json({ error: 'Khong tim thay' });
+  await pool.query('DELETE FROM campaigns WHERE id=?', [c.id]);
+  res.json({ ok: true });
+});
 router.get('/banners', async (req, res) => {
-  const [rows] = await pool.query("SELECT * FROM banners WHERE status='active' ORDER BY sort_order LIMIT 50");
+  if (req.query.all === '1') {
+    const [all] = await pool.query(`SELECT b.*, m.object_key image_key FROM banners b
+      LEFT JOIN media_files m ON m.id=b.image_media_id ORDER BY b.sort_order, b.id`);
+    return res.json(all);
+  }
+  const [rows] = await pool.query(`SELECT b.*, m.object_key image_key FROM banners b
+    JOIN media_files m ON m.id=b.image_media_id
+    WHERE b.status='active' ORDER BY b.sort_order, b.id LIMIT 50`);
   res.json(rows);
 });
 router.get('/banners/all', authRequired, requirePerm('promotions.read'), async (req, res) => {
-  const [rows] = await pool.query('SELECT * FROM banners ORDER BY sort_order');
+  const [rows] = await pool.query(`SELECT b.*, m.object_key image_key FROM banners b
+    LEFT JOIN media_files m ON m.id=b.image_media_id ORDER BY b.sort_order, b.id`);
   res.json(rows);
 });
 router.post('/banners', authRequired, requirePerm('promotions.write'), async (req, res) => {
@@ -90,6 +128,23 @@ router.put('/banners/:id', authRequired, requirePerm('promotions.write'), async 
     [f.title, f.image_media_id, f.mobile_image_media_id, f.link_url, f.alt_text, f.sort_order, f.status, f.starts_at, f.ends_at, b.id]);
   const [[row]] = await pool.query('SELECT * FROM banners WHERE id=?', [b.id]);
   res.json(row);
+});
+router.delete('/banners/:id', authRequired, requirePerm('promotions.write'), async (req, res) => {
+  const [[b]] = await pool.query('SELECT * FROM banners WHERE id=?', [req.params.id]);
+  if (!b) return res.status(404).json({ error: 'Khong tim thay' });
+  await pool.query('DELETE FROM banners WHERE id=?', [b.id]);
+  res.json({ ok: true });
+});
+router.post('/banners/reorder', authRequired, requirePerm('promotions.write'), async (req, res) => {
+  const ids = req.body?.ids;
+  if (!Array.isArray(ids) || !ids.length) return res.status(400).json({ error: 'Thieu danh sach ids' });
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    for (const [i, id] of ids.entries()) await conn.query('UPDATE banners SET sort_order=? WHERE id=?', [i + 1, id]);
+    await conn.commit();
+    res.json({ ok: true, count: ids.length });
+  } catch (e) { await conn.rollback(); res.status(400).json({ error: e.message }); } finally { conn.release(); }
 });
 
 // SYSTEM: settings, notifications, logs, reports

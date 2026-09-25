@@ -7,6 +7,7 @@ COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 
 COPY src ./src
+COPY db ./db
 COPY seed-admin.js ./
 
 EXPOSE 3000

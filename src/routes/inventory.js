@@ -24,10 +24,31 @@ router.put('/warehouses/:id', authRequired, requirePerm('inventory.write'), asyn
   const [[w]] = await pool.query('SELECT * FROM warehouses WHERE id=?', [req.params.id]);
   if (!w) return res.status(404).json({ error: 'Khong tim thay' });
   const f = { ...w, ...req.body };
-  await pool.query('UPDATE warehouses SET code=?,name=?,address=?,province_code=?,district_code=?,ward_code=?,status=? WHERE id=?',
-    [f.code, f.name, f.address, f.province_code, f.district_code, f.ward_code, f.status, w.id]);
-  const [[row]] = await pool.query('SELECT * FROM warehouses WHERE id=?', [w.id]);
-  res.json(row);
+  try {
+    await pool.query('UPDATE warehouses SET code=?,name=?,address=?,province_code=?,district_code=?,ward_code=?,status=? WHERE id=?',
+      [f.code, f.name, f.address, f.province_code, f.district_code, f.ward_code, f.status, w.id]);
+    const [[row]] = await pool.query('SELECT * FROM warehouses WHERE id=?', [w.id]);
+    res.json(row);
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+router.delete('/warehouses/:id', authRequired, requirePerm('inventory.write'), async (req, res) => {
+  const [[w]] = await pool.query('SELECT * FROM warehouses WHERE id=?', [req.params.id]);
+  if (!w) return res.status(404).json({ error: 'Khong tim thay' });
+  const [[{ s }]] = await pool.query('SELECT COUNT(*) s FROM warehouse_stocks WHERE warehouse_id=? AND quantity>0', [w.id]);
+  const [[{ m }]] = await pool.query('SELECT COUNT(*) m FROM stock_movements WHERE warehouse_id=?', [w.id]);
+  const [[{ a }]] = await pool.query('SELECT COUNT(*) a FROM inventory_adjustments WHERE warehouse_id=?', [w.id]);
+  const blocking = s + m + a;
+  if (blocking > 0 && req.query.force !== '1')
+    return res.status(409).json({ error: `Kho con ${s} muc ton, ${m} phieu nhap/xuat, ${a} phieu dieu chinh. Xoa hoac them ?force=1`, can_force: true, stock_rows: s, movements: m, adjustments: a });
+  if (req.query.force === '1') {
+    await pool.query('DELETE FROM inventory_adjustment_items WHERE adjustment_id IN (SELECT id FROM inventory_adjustments WHERE warehouse_id=?)', [w.id]);
+    await pool.query('DELETE FROM inventory_adjustments WHERE warehouse_id=?', [w.id]);
+    await pool.query('DELETE FROM stock_movements WHERE warehouse_id=?', [w.id]);
+    await pool.query('DELETE FROM stock_reservations WHERE warehouse_id=?', [w.id]);
+  }
+  await pool.query('DELETE FROM warehouse_stocks WHERE warehouse_id=?', [w.id]);
+  await pool.query('DELETE FROM warehouses WHERE id=?', [w.id]);
+  res.json({ ok: true, forced: req.query.force === '1' });
 });
 
 // Stocks
@@ -57,6 +78,22 @@ router.put('/stocks', authRequired, requirePerm('inventory.write'), async (req, 
     [warehouse_id, variant_id, 'adjustment', quantity, 'Nhap/t set ton kho thu cong', req.user.id]);
   const [[row]] = await pool.query('SELECT * FROM warehouse_stocks WHERE warehouse_id=? AND variant_id=?', [warehouse_id, variant_id]);
   res.json(row);
+});
+router.delete('/stocks', authRequired, requirePerm('inventory.write'), async (req, res) => {
+  const warehouse_id = req.query.warehouse_id ?? req.body?.warehouse_id;
+  const variant_id = req.query.variant_id ?? req.body?.variant_id;
+  if (!warehouse_id || !variant_id) return res.status(400).json({ error: 'Thieu warehouse_id/variant_id' });
+  const [[s]] = await pool.query('SELECT * FROM warehouse_stocks WHERE warehouse_id=? AND variant_id=?', [warehouse_id, variant_id]);
+  if (!s) return res.status(404).json({ error: 'Khong tim thay' });
+  if (Number(s.reserved_quantity) > 0)
+    return res.status(409).json({ error: `Con ${s.reserved_quantity} san pham dang duoc dat trong gio, khong the xoa`, can_force: false, reserved: s.reserved_quantity });
+  if (req.query.force !== '1' && Number(s.quantity) !== 0)
+    return res.status(409).json({ error: `Con ${s.quantity} san pham trong kho. Chon "Xoa va ghi tang -${s.quantity}"`, can_force: true, quantity: s.quantity });
+  if (Number(s.quantity) !== 0)
+    await pool.query(`INSERT INTO stock_movements (warehouse_id,variant_id,type,quantity,note,created_by) VALUES (?,?,'adjustment',?,?,?)`,
+      [warehouse_id, variant_id, -Number(s.quantity), 'Xoa muc ton kho', req.user.id]);
+  await pool.query('DELETE FROM warehouse_stocks WHERE warehouse_id=? AND variant_id=?', [warehouse_id, variant_id]);
+  res.json({ ok: true, cleared_quantity: Number(s.quantity) });
 });
 router.get('/stock-movements', authRequired, requirePerm('inventory.read'), async (req, res) => {
   const { variant_id, warehouse_id } = req.query;

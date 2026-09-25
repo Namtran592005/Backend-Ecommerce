@@ -71,9 +71,61 @@ router.get('/:id', authRequired, async (req, res) => {
 router.patch('/:id/status', authRequired, requirePerm('users.write'), async (req, res) => {
   const { status } = req.body;
   if (!['pending', 'active', 'inactive', 'suspended', 'deleted'].includes(status)) return res.status(400).json({ error: 'Status sai' });
+  if (String(req.user.id) === String(req.params.id) && status !== 'active')
+    return res.status(400).json({ error: 'Khong the tu tat tai khoan dang dang nhap' });
   if (status === 'deleted') await pool.query('UPDATE users SET status=?, deleted_at=NOW(6) WHERE id=?', [status, req.params.id]);
   else await pool.query('UPDATE users SET status=?, deleted_at=NULL WHERE id=?', [status, req.params.id]);
   res.json({ ok: true });
+});
+
+router.put('/:id', authRequired, requirePerm('users.write'), async (req, res) => {
+  const [[u]] = await pool.query('SELECT * FROM users WHERE id=?', [req.params.id]);
+  if (!u) return res.status(404).json({ error: 'Khong tim thay' });
+  const { email, phone, status, first_name, last_name, display_name, gender, date_of_birth, marketing_opt_in } = req.body || {};
+  if (email !== undefined && email !== null && email !== '') {
+    const [[dup]] = await pool.query('SELECT id FROM users WHERE email=? AND id<>?', [email, u.id]);
+    if (dup) return res.status(409).json({ error: 'Email da duoc dung' });
+  }
+  if (phone !== undefined && phone !== null && phone !== '') {
+    const [[dup]] = await pool.query('SELECT id FROM users WHERE phone=? AND id<>?', [phone, u.id]);
+    if (dup) return res.status(409).json({ error: 'So dien thoai da duoc dung' });
+  }
+  if (status !== undefined && !['pending', 'active', 'inactive', 'suspended'].includes(status))
+    return res.status(400).json({ error: 'Status sai' });
+  if (status !== undefined && String(req.user.id) === String(u.id) && status !== 'active')
+    return res.status(400).json({ error: 'Khong the tu tat tai khoan dang dang nhap' });
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    await conn.query('UPDATE users SET email=?,phone=?,status=? WHERE id=?',
+      [email === '' ? null : email ?? u.email, phone === '' ? null : phone ?? u.phone, status || u.status, u.id]);
+    if ([first_name, last_name, display_name, gender, date_of_birth, marketing_opt_in].some((v) => v !== undefined)) {
+      await conn.query('INSERT IGNORE INTO user_profiles (user_id) VALUES (?)', [u.id]);
+      const [[p]] = await conn.query('SELECT * FROM user_profiles WHERE user_id=?', [u.id]);
+      await conn.query(`UPDATE user_profiles SET first_name=?,last_name=?,display_name=?,gender=?,date_of_birth=?,marketing_opt_in=? WHERE user_id=?`,
+        [first_name ?? p.first_name, last_name ?? p.last_name, display_name ?? p.display_name,
+          gender || p.gender, date_of_birth === '' ? null : date_of_birth ?? p.date_of_birth,
+          marketing_opt_in === undefined ? p.marketing_opt_in : !!marketing_opt_in, u.id]);
+    }
+    await conn.commit();
+  } catch (e) { await conn.rollback(); return res.status(400).json({ error: e.message }); } finally { conn.release(); }
+  const [[full]] = await pool.query('SELECT id,email,phone,status,created_at FROM users WHERE id=?', [u.id]);
+  res.json(full);
+});
+
+router.delete('/:id', authRequired, requirePerm('users.write'), async (req, res) => {
+  const uid = req.params.id;
+  if (String(req.user.id) === String(uid)) return res.status(400).json({ error: 'Khong the xoa chinh tai khoan dang dang nhap' });
+  const [[u]] = await pool.query('SELECT * FROM users WHERE id=?', [uid]);
+  if (!u) return res.status(404).json({ error: 'Khong tim thay' });
+  const [[{ n }]] = await pool.query('SELECT COUNT(*) n FROM user_roles ur JOIN roles r ON r.id=ur.role_id WHERE ur.user_id=? AND r.code=\'super_admin\'', [uid]);
+  if (n > 0 && req.query.force !== '1')
+    return res.status(409).json({ error: 'Day la tai khoan Super Admin. Chon xoa manh (force) neu chac chan', can_force: true });
+  const [[{ o }]] = await pool.query("SELECT COUNT(*) o FROM orders WHERE user_id=? AND status NOT IN ('cancelled','returned','refunded')", [uid]);
+  if (req.query.force !== '1')
+    return res.status(409).json({ error: `Tai khoan co ${o} don hinh thinh. Xoa an (status=deleted) hoac them ?force=1`, can_force: true, order_count: o });
+  await pool.query('DELETE FROM users WHERE id=?', [uid]);
+  res.json({ ok: true, soft: false });
 });
 
 // POST /api/users/:id/roles
@@ -86,6 +138,14 @@ router.post('/:id/roles', authRequired, requirePerm('users.write'), async (req, 
   res.status(201).json({ ok: true });
 });
 router.delete('/:id/roles/:roleId', authRequired, requirePerm('users.write'), async (req, res) => {
+  const [[r]] = await pool.query('SELECT * FROM roles WHERE id=?', [req.params.roleId]);
+  if (!r) return res.status(404).json({ error: 'Khong tim thay vai tro' });
+  if (r.code === 'super_admin') {
+    const [[{ n }]] = await pool.query('SELECT COUNT(*) n FROM user_roles ur JOIN roles rr ON rr.id=ur.role_id WHERE rr.code=\'super_admin\'');
+    if (n <= 1) return res.status(400).json({ error: 'Phai giu it nhat 1 Super Admin' });
+    if (String(req.user.id) === String(req.params.id))
+      return res.status(400).json({ error: 'Khong the tu go Super Admin cho chinh minh' });
+  }
   await pool.query('DELETE FROM user_roles WHERE user_id=? AND role_id=?', [req.params.id, req.params.roleId]);
   res.json({ ok: true });
 });

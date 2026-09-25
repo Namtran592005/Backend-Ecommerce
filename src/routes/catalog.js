@@ -148,9 +148,37 @@ router.put('/products/:id', authRequired, requirePerm('products.write'), async (
   } catch (e) { res.status(400).json({ error: e.message }); }
 });
 
+const PRODUCT_STATUS = ['draft', 'active', 'inactive', 'archived'];
+router.patch('/products/:id/status', authRequired, requirePerm('products.write'), async (req, res) => {
+  const status = req.body?.status;
+  if (!PRODUCT_STATUS.includes(status)) return res.status(400).json({ error: 'Trang thai khong hop le' });
+  const [[pr]] = await pool.query('SELECT * FROM products WHERE id=?', [req.params.id]);
+  if (!pr) return res.status(404).json({ error: 'Khong tim thay' });
+  const shown = status === 'active' || status === 'draft';
+  await pool.query(
+    `UPDATE products SET status=?, deleted_at=${shown ? 'NULL' : 'COALESCE(deleted_at,NOW(6))'},
+     published_at=${status === 'active' ? 'COALESCE(published_at,NOW(6))' : 'published_at'} WHERE id=?`,
+    [status, pr.id]);
+  const [[row]] = await pool.query('SELECT * FROM products WHERE id=?', [pr.id]);
+  res.json(row);
+});
 router.delete('/products/:id', authRequired, requirePerm('products.write'), async (req, res) => {
-  await pool.query("UPDATE products SET status='archived', deleted_at=NOW(6) WHERE id=?", [req.params.id]);
-  res.json({ ok: true });
+  const [[pr]] = await pool.query('SELECT * FROM products WHERE id=?', [req.params.id]);
+  if (!pr) return res.status(404).json({ error: 'Khong tim thay' });
+  await pool.query("UPDATE products SET status='archived', deleted_at=NOW(6) WHERE id=?", [pr.id]);
+  res.json({ ok: true, soft: true });
+});
+router.delete('/products/:id/permanent', authRequired, requirePerm('products.write'), async (req, res) => {
+  const [[pr]] = await pool.query('SELECT * FROM products WHERE id=?', [req.params.id]);
+  if (!pr) return res.status(404).json({ error: 'Khong tim thay' });
+  const [[{ n }]] = await pool.query(
+    'SELECT COUNT(*) n FROM order_items WHERE product_id=? AND EXISTS (SELECT 1 FROM orders WHERE orders.id=order_items.order_id AND orders.status NOT IN (\'cancelled\',\'returned\',\'refunded\'))',
+    [pr.id]);
+  if (req.query.force !== '1' && n > 0)
+    return res.status(409).json({ error: `San pham da co ${n} don hinh thinh. Chi xoa an (archive) hoac them ?force=1`, can_force: true, order_count: n });
+  const [[{ n: oi }]] = await pool.query('SELECT COUNT(*) n FROM order_items WHERE product_id=?', [pr.id]);
+  await pool.query('DELETE FROM products WHERE id=?', [pr.id]);
+  res.json({ ok: true, soft: false, detached_order_items: oi });
 });
 
 // ---------- VARIANTS ----------
@@ -203,6 +231,43 @@ router.post('/attributes/:id/values', authRequired, requirePerm('products.write'
     [req.params.id, value, display_value || null, color_hex || null, image_media_id || null, sort_order || 0]);
   const [[row]] = await pool.query('SELECT * FROM attribute_values WHERE id=?', [r.insertId]);
   res.status(201).json(row);
+});
+router.put('/attributes/:id', authRequired, requirePerm('products.write'), async (req, res) => {
+  const [[a]] = await pool.query('SELECT * FROM attributes WHERE id=?', [req.params.id]);
+  if (!a) return res.status(404).json({ error: 'Khong tim thay' });
+  const f = { ...a, ...req.body };
+  if (!f.name || !f.code) return res.status(400).json({ error: 'Thieu name/code' });
+  try {
+    await pool.query('UPDATE attributes SET name=?,code=?,display_type=?,sort_order=? WHERE id=?',
+      [f.name, f.code, f.display_type || 'text', f.sort_order || 0, a.id]);
+    const [[row]] = await pool.query('SELECT * FROM attributes WHERE id=?', [a.id]);
+    res.json(row);
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+router.delete('/attributes/:id', authRequired, requirePerm('products.write'), async (req, res) => {
+  const [[a]] = await pool.query('SELECT * FROM attributes WHERE id=?', [req.params.id]);
+  if (!a) return res.status(404).json({ error: 'Khong tim thay' });
+  const [[{ n }]] = await pool.query('SELECT COUNT(*) n FROM product_attributes WHERE attribute_id=?', [a.id]);
+  await pool.query('DELETE FROM attributes WHERE id=?', [a.id]);
+  res.json({ ok: true, removed_values: true, affected_products: n });
+});
+router.put('/attribute-values/:id', authRequired, requirePerm('products.write'), async (req, res) => {
+  const [[v]] = await pool.query('SELECT * FROM attribute_values WHERE id=?', [req.params.id]);
+  if (!v) return res.status(404).json({ error: 'Khong tim thay' });
+  const f = { ...v, ...req.body };
+  if (!f.value) return res.status(400).json({ error: 'Thieu value' });
+  try {
+    await pool.query('UPDATE attribute_values SET value=?,display_value=?,color_hex=?,image_media_id=?,sort_order=? WHERE id=?',
+      [f.value, f.display_value || null, f.color_hex || null, f.image_media_id || null, f.sort_order || 0, v.id]);
+    const [[row]] = await pool.query('SELECT * FROM attribute_values WHERE id=?', [v.id]);
+    res.json(row);
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+router.delete('/attribute-values/:id', authRequired, requirePerm('products.write'), async (req, res) => {
+  const [[v]] = await pool.query('SELECT * FROM attribute_values WHERE id=?', [req.params.id]);
+  if (!v) return res.status(404).json({ error: 'Khong tim thay' });
+  await pool.query('DELETE FROM attribute_values WHERE id=?', [v.id]);
+  res.json({ ok: true });
 });
 
 // ---------- PRODUCT IMAGES / MEDIA ----------

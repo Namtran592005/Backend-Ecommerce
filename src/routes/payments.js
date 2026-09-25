@@ -18,6 +18,39 @@ router.post('/methods', authRequired, requirePerm('payments.write'), async (req,
   const [[row]] = await pool.query('SELECT * FROM payment_methods WHERE id=?', [r.insertId]);
   res.status(201).json(row);
 });
+router.put('/methods/:id', authRequired, requirePerm('payments.write'), async (req, res) => {
+  const [[m]] = await pool.query('SELECT * FROM payment_methods WHERE id=?', [req.params.id]);
+  if (!m) return res.status(404).json({ error: 'Khong tim thay' });
+  const f = { ...m, ...req.body };
+  if (!f.code || !f.name || !f.type) return res.status(400).json({ error: 'Thieu code/name/type' });
+  try {
+    await pool.query('UPDATE payment_methods SET code=?,name=?,provider=?,type=?,is_active=?,sort_order=?,config=? WHERE id=?',
+      [f.code, f.name, f.provider, f.type, f.is_active === undefined ? m.is_active : !!f.is_active, f.sort_order || 0,
+        f.config ? JSON.stringify(f.config) : null, m.id]);
+    const [[row]] = await pool.query('SELECT * FROM payment_methods WHERE id=?', [m.id]);
+    res.json(row);
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+router.patch('/methods/:id/toggle', authRequired, requirePerm('payments.write'), async (req, res) => {
+  const [[m]] = await pool.query('SELECT * FROM payment_methods WHERE id=?', [req.params.id]);
+  if (!m) return res.status(404).json({ error: 'Khong tim thay' });
+  const next = m.is_active ? 0 : 1;
+  await pool.query('UPDATE payment_methods SET is_active=? WHERE id=?', [next, m.id]);
+  const [[row]] = await pool.query('SELECT * FROM payment_methods WHERE id=?', [m.id]);
+  res.json(row);
+});
+router.delete('/methods/:id', authRequired, requirePerm('payments.write'), async (req, res) => {
+  const [[m]] = await pool.query('SELECT * FROM payment_methods WHERE id=?', [req.params.id]);
+  if (!m) return res.status(404).json({ error: 'Khong tim thay' });
+  const [[{ n }]] = await pool.query('SELECT COUNT(*) n FROM payments WHERE payment_method_id=?', [m.id]);
+  if (n > 0) {
+    if (req.query.force !== '1')
+      return res.status(409).json({ error: `Phuong thuc da duoc dung cho ${n} thanh toan. Tat di thay vi xoa, hoac them ?force=1`, can_force: true, payment_count: n });
+    await pool.query('UPDATE payments SET payment_method_id=NULL WHERE payment_method_id=?', [m.id]);
+  }
+  await pool.query('DELETE FROM payment_methods WHERE id=?', [m.id]);
+  res.json({ ok: true, detached_payments: n });
+});
 
 // Payments
 router.get('/', authRequired, async (req, res) => {

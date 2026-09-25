@@ -735,7 +735,7 @@ CREATE TABLE payment_methods (
 CREATE TABLE payments (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   order_id BIGINT UNSIGNED NOT NULL,
-  payment_method_id BIGINT UNSIGNED NOT NULL,
+  payment_method_id BIGINT UNSIGNED NULL,
   status ENUM('pending','processing','paid','failed','cancelled','refunded','partially_refunded') NOT NULL DEFAULT 'pending',
   amount DECIMAL(15,2) NOT NULL,
   currency CHAR(3) NOT NULL DEFAULT 'VND',

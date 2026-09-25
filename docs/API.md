@@ -39,20 +39,23 @@ Roles: `super_admin | store_manager | warehouse_staff | customer_support | marke
 | `GET /?search=&status=&page=` | `users.read` | Kèm `roles` mỗi user |
 | `GET /meta/roles`, `GET /meta/permissions` | 🔒 / `users.read` | Dựng dropdown phân quyền |
 | `GET /:id` | chính mình hoặc `users.read` | `{ user, profile, roles, addresses }` |
-| `PATCH /:id/status` | `users.write` | `{ status: pending\|active\|inactive\|suspended\|deleted }` |
+| `PUT /:id` | `users.write` | Sửa hồ sơ: `{ email?, phone?, status?, first_name?, last_name?, display_name?, gender?, date_of_birth?, marketing_opt_in? }`. 409 nếu email/SĐT trùng người khác, 400 nếu tự đổi trạng thái tài khoản đang đăng nhập |
+| `PATCH /:id/status` | `users.write` | `{ status: pending\|active\|inactive\|suspended\|deleted }` — `deleted` là xoá mềm |
+| `DELETE /:id` | `users.write` | Xoá cứng. 409 `{ can_force:true }` nếu tài khoản có đơn hình thành hoặc là super_admin → thêm `?force=1`. 400 nếu tự xoá mình |
 | `POST /:id/roles` | `users.write` | `{ role_code }` hoặc `{ role_id }` |
 | `POST /` | `users.write` | Tạo tài khoản + gán vai trò: `{ email?, phone?, password (≥8), first_name?, last_name?, role_code? }` (dùng thêm nhân sự) |
-| `DELETE /:id/roles/:roleId` | `users.write` | |
+| `DELETE /:id/roles/:roleId` | `users.write` | 400 nếu gỡ vai trò super_admin cuối cùng hoặc tự gỡ của mình |
 | `POST /:id/addresses` | chính mình / `users.write` | Bắt buộc `recipient_name, phone, province_name, address_line`; `is_default` auto reset cái cũ |
 | `PUT /addresses/:addrId`, `DELETE /addresses/:addrId` | chủ địa chỉ / `users.write` | |
 
 ## 3. Catalog — `/api/...`
 
 - Brands: `GET /brands` (public) · `POST /brands { name, description?, logo_media_id?, status? }` ·
-  `PUT /brands/:id` · `DELETE /brands/:id` (tắt, không xóa cứng). Quyền ghi: `products.write`.
+  `PUT /brands/:id` · `DELETE /brands/:id` (xoá mềm — tắt `status`, không xoá cứng). Quyền ghi: `products.write`.
 - Categories: `GET /categories` · `GET /categories/tree` (cây `children[]` làm menu) ·
-  `POST /categories { parent_id?, name, description?, image_media_id?, sort_order? }` ·
-  `PUT/DELETE /categories/:id`. Quyền ghi: `categories.write`.
+  `POST /categories { parent_id?, name, slug?, description?, image_media_id?, icon?, sort_order?, status? }` ·
+  `PUT /categories/:id` (thay trọn bộ) · `DELETE /categories/:id` (xoá mềm — tắt `status`).
+  Quyền ghi: `categories.write`.
 - Products:
   - `GET /products?search=&category_id=&brand_id=&page=` — khách chỉ thấy `active`;
     kèm `brand_name, images[], variant_count`.
@@ -60,11 +63,16 @@ Roles: `super_admin | store_manager | warehouse_staff | customer_support | marke
     `images, categories, review_summary { c, avg_rating }`.
   - `GET /products/:id` — chi tiết + variants/images/categories.
   - `POST /products { name, base_price, brand_id?, status?, category_ids[]?, sku?, ... }` ·
-    `PUT /products/:id` (kèm `category_ids[]` để set lại) · `DELETE` (archive + `deleted_at`).
+    `PUT /products/:id` (kèm `category_ids[]` để set lại) ·
+    `PATCH /products/:id/status { status: draft|active|inactive|archived }` (bật/tắt nhanh, tự set `published_at`/`deleted_at`) ·
+    `DELETE /products/:id` (xoá mềm — archive) ·
+    `DELETE /products/:id/permanent` (xoá cứng; 409 `{ can_force:true, order_count }` nếu có đơn chưa huỷ → thêm `?force=1`).
 - Variants: `POST /products/:id/variants { sku, price, name?, barcode?, ..., attribute_value_ids[]? }` ·
   `PUT /variants/:id` · `DELETE /variants/:id` (tắt).
 - Attributes: `GET /attributes` (kèm `values[]`) · `POST /attributes { name, code, display_type?, sort_order? }` ·
-  `POST /attributes/:id/values { value, display_value?, color_hex?, ... }`.
+  `PUT /attributes/:id` · `DELETE /attributes/:id` (xoá cứng, kéo theo `attribute_values` và liên kết biến thể) ·
+  `POST /attributes/:id/values { value, display_value?, color_hex?, image_media_id?, sort_order? }` ·
+  `PUT /attribute-values/:id` · `DELETE /attribute-values/:id` (xoá cứng).
 - Images: `POST /products/:id/images { media_id, variant_id?, sort_order?, is_primary?, alt_text? }` ·
   `PUT /product-images/:id { sort_order?, is_primary?, alt_text?, variant_id? }`
   (đặt `is_primary:true` tự hạ ảnh chính cũ) · `DELETE /product-images/:id`.
@@ -85,9 +93,11 @@ File lưu ở MinIO (S3-compatible), phục vụ công khai `https://API_DOMAIN/
 | Method & path | Quyền | Ghi chú |
 |---|---|---|
 | `GET/POST /warehouses`, `PUT /warehouses/:id` | `inventory.read` / `.write` | `{ code, name, address?, ... }` |
+| `DELETE /warehouses/:id` | `inventory.write` | 409 `{ can_force:true, stock_rows, movements, adjustments }` nếu còn dữ liệu liên quan → thêm `?force=1` để dọn movement/reservation/phiếu điều chỉnh rồi xoá |
 | `GET /stocks?warehouse_id=&variant_id=&low=1` | `inventory.read` | `low=1` = sắp hết (`available ≤ reorder_level`) |
 | `GET /stocks/available` | public | view `v_available_stock` |
 | `PUT /stocks` | `inventory.write` | `{ warehouse_id, variant_id, quantity, reorder_level? }` (upsert + ghi movement) |
+| `DELETE /stocks?warehouse_id=&variant_id=` | `inventory.write` | Xoá mục tồn (khoá composite). 409 `{ can_force:true, quantity }` nếu còn tồn → thêm `&force=1` (ghi movement trừ hết rồi xoá). Nếu đang có hàng trong giỏ thì 409 không force được |
 | `GET /stock-movements?variant_id=&warehouse_id=` | `inventory.read` | |
 | `GET/POST /adjustments` | … | `{ warehouse_id, reason, items:[{ variant_id, new_quantity }] }` (tạo драфт) |
 | `POST /adjustments/:id/post` | `inventory.write` | Chốt: cập nhật tồn + movement |
@@ -123,7 +133,9 @@ Luồng đơn: `pending → confirmed/cancelled → processing → packed → sh
 
 ## 8. Thanh toán — `/api/payments`
 
-- `GET /methods` (public) · `POST /methods { code, name, type: cod|bank_transfer|gateway|card|wallet|other, ... }` (`payments.write`).
+- `GET /methods` (public) · `POST /methods { code, name, type: cod|bank_transfer|gateway|card|wallet|other, ... }` ·
+  `PUT /methods/:id` · `PATCH /methods/:id/toggle` (bật/tắt nhanh) ·
+  `DELETE /methods/:id` (409 `{ can_force:true, payment_count }` nếu đã có thanh toán → `?force=1`, các bản ghi cũ để `payment_method_id = NULL`) — tất cả cần `payments.write`.
 - `GET /?order_id=&status=` 🔒 · `GET /:id` 🔒 (kèm `transactions[]`) · `POST / { order_id, payment_method_code? }` 🔒.
 - `POST /:id/transactions` (**public**, mô phỏng webhook):
   `{ transaction_type?, status?, amount?, idempotency_key?, provider_transaction_id? }` —
@@ -135,7 +147,9 @@ Luồng đơn: `pending → confirmed/cancelled → processing → packed → sh
 
 ## 9. Vận chuyển — `/api/shipping`
 
-- `GET /providers` · `GET /methods` (public, chỉ active) · `POST/PUT /methods/:id` (`shipping.write`).
+- `GET /providers` · `GET /methods` (public, chỉ active) · `GET /methods?all=1` (admin xem cả hình thức đã tắt, kèm `shipment_count`) ·
+  `POST /methods` · `PUT /methods/:id` · `PATCH /methods/:id/toggle` (bật/tắt) ·
+  `DELETE /methods/:id` (409 `{ can_force:true, shipment_count, order_count }` nếu đã dùng → `?force=1`) — tất cả cần `shipping.write`.
 - `GET /shipments?order_id=&status=` (`shipping.read`) · `GET /shipments/:id` (kèm items + tracking) ·
   `POST /shipments { order_id, shipping_method_id?, warehouse_id?, tracking_number?, ... }` ·
   `PATCH /shipments/:id/status { status, tracking_number?, description?, location? }`
@@ -146,9 +160,13 @@ Luồng đơn: `pending → confirmed/cancelled → processing → packed → sh
 ## 10. KM & coupon — `/api/promos`
 
 - Promotions: `GET` (public) · `POST { name, type: percentage|fixed|buy_x_get_y|free_shipping|bundle, value?, ... }` ·
-  `PUT /promotions/:id` · `POST /promotions/:id/products { product_ids[] }` (`promotions.write`).
+  `PUT /promotions/:id` · `PATCH /promotions/:id/toggle` (`active ↔ inactive`) ·
+  `POST /promotions/:id/products { product_ids[] }` (thêm) · `PUT /promotions/:id/products` (thay cả bộ) ·
+  `DELETE /promotions/:id` (409 `{ can_force:true, product_count }` nếu còn sản phẩm gắn → `?force=1`) — quyền `promotions.write`.
 - Coupons: `GET` (`promotions.read`) · `POST { code, type: fixed|percentage|free_shipping, value, minimum_order_amount?, maximum_discount_amount?, usage_limit?, usage_limit_per_user?, starts_at?, expires_at?, status? }` ·
-  `PUT /coupons/:id` · `POST /coupons/validate { code, order_amount? }` (**public** → `{ valid, discount_amount?, coupon? }` hoặc `{ valid:false, error }`).
+  `PUT /coupons/:id` · `PATCH /coupons/:id/toggle` (bật/tắt) ·
+  `DELETE /coupons/:id` (409 `{ can_force:true, redemption_count }` nếu đã dùng → `?force=1` để xoá cả lịch sử dùng) —
+  quyền `promotions.write` · `POST /coupons/validate { code, order_amount? }` (**public** → `{ valid, discount_amount?, coupon? }` hoặc `{ valid:false, error }`).
 - `GET /redemptions` (`promotions.read`).
 
 ## 11. Đổi trả & đánh giá — `/api/...`
@@ -166,8 +184,13 @@ Luồng đơn: `pending → confirmed/cancelled → processing → packed → sh
 - Invoices: `GET` 🔒 · `POST { order_id, buyer_* }` (`payments.write`, tự sinh dòng từ order) ·
   `PATCH /invoices/:id/status { issued|cancelled }`.
 - Cash-flows: `GET /cash-flows?from=&to=` (`reports.read`) · `POST { type, amount, ... }` (`payments.write`).
-- Campaigns: `GET` (public) · `POST { name, product_ids[]? }` (`promotions.write`).
-- Banners: `GET` (public, active) · `GET /banners/all` · `POST { title, image_media_id?, link_url?, status?, ... }` · `PUT /banners/:id`.
+- Campaigns: `GET` (public, active) · `GET /campaigns?all=1` (admin, kèm `product_count`) ·
+  `POST { name, product_ids[]? }` · `PUT /campaigns/:id` (thay cả bộ sản phẩm nếu gửi `product_ids[]`) ·
+  `DELETE /campaigns/:id` (`promotions.write`).
+- Banners: `GET` (public) — chỉ banner `active` **có ảnh**, sắp theo `sort_order, id`, kèm `image_key` để dựng URL ·
+  `GET /banners?all=1` · `GET /banners/all` (admin) ·
+  `POST { title, image_media_id?, link_url?, alt_text?, sort_order?, status?, ... }` · `PUT /banners/:id` ·
+  `DELETE /banners/:id` · `POST /banners/reorder { ids: [id theo thứ tự mong muốn] }` (`promotions.write`).
 - Settings: `GET /settings/public` (public) · `GET /settings` · `PUT /settings/:key { value }` (`settings.write`).
 - Notifications 🔒: `GET` (của mình + chung) · `POST { user_id?, type, title, body }` (`users.write`) · `PATCH /notifications/:id/read`.
 - Logs: `GET /audit-logs`, `GET /admin-logs` (`audit.read`).
