@@ -108,7 +108,9 @@ router.get('/products/slug/:slug', async (req, res) => {
 router.get('/products/:id', async (req, res) => {
   const [[pr]] = await pool.query('SELECT * FROM products WHERE id=?', [req.params.id]);
   if (!pr) return res.status(404).json({ error: 'Khong tim thay' });
-  const [variants] = await pool.query('SELECT * FROM product_variants WHERE product_id=?', [pr.id]);
+  const [variants] = await pool.query(`SELECT v.*,
+    (SELECT COALESCE(SUM(s.quantity - s.reserved_quantity), 0) FROM warehouse_stocks s WHERE s.variant_id = v.id) available_qty
+    FROM product_variants v WHERE v.product_id=? ORDER BY v.id`, [pr.id]);
   const [images] = await pool.query(`SELECT pi.*, mf.object_key, mf.mime_type FROM product_images pi
     LEFT JOIN media_files mf ON mf.id=pi.media_id WHERE pi.product_id=? ORDER BY sort_order`, [pr.id]);
   const [cats] = await pool.query('SELECT c.* FROM product_categories pc JOIN categories c ON c.id=pc.category_id WHERE pc.product_id=?', [pr.id]);
