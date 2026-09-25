@@ -7,7 +7,8 @@ const router = express.Router();
 
 // ---------- BRANDS ----------
 router.get('/brands', async (req, res) => {
-  const [rows] = await pool.query('SELECT * FROM brands ORDER BY id DESC');
+  const [rows] = await pool.query(`SELECT b.*, m.object_key logo_key FROM brands b
+    LEFT JOIN media_files m ON m.id = b.logo_media_id ORDER BY b.id DESC`);
   res.json(rows);
 });
 router.post('/brands', authRequired, requirePerm('products.write'), async (req, res) => {
