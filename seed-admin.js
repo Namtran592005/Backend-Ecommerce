@@ -1,9 +1,9 @@
 const bcrypt = require('bcryptjs');
 const { pool } = require('./src/config/db');
+const { DEFAULT_ADMIN_EMAIL, DEFAULT_ADMIN_PASSWORD } = require('./db/admin-defaults');
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const MIN_LEN = 8;
-const DEFAULT_PASSWORD = 'Admin@123';
 
 // Chờ kết nối DB nội bộ (lần đầu MySQL trong Docker sẵn sàng TCP)
 async function waitForDb(retries = 20, delayMs = 3000) {
@@ -22,8 +22,8 @@ async function waitForDb(retries = 20, delayMs = 3000) {
 (async () => {
   await waitForDb();
 
-  const email = (process.env.ADMIN_EMAIL || 'admin@example.com').trim().toLowerCase();
-  const password = process.env.ADMIN_PASSWORD || DEFAULT_PASSWORD;
+  const email = (process.env.ADMIN_EMAIL || DEFAULT_ADMIN_EMAIL).trim().toLowerCase();
+  const password = process.env.ADMIN_PASSWORD || DEFAULT_ADMIN_PASSWORD;
   if (password.length < MIN_LEN) {
     console.error(`ADMIN_PASSWORD phai it nhat ${MIN_LEN} ky tu.`);
     process.exit(1);
