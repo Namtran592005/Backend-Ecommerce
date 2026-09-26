@@ -8,10 +8,10 @@
 }
 
 {$API_DOMAIN} {
-	# File công khai từ MinIO: https://API_DOMAIN/files/unimate/<key>
+	# File công khai từ object storage: https://API_DOMAIN/files/unimate/<key>
 	handle /files/* {
 		uri strip_prefix /files
-		reverse_proxy minio:9000
+		reverse_proxy objectstore:9000
 	}
 	handle {
 		reverse_proxy backend:3000

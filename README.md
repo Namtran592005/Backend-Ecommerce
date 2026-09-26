@@ -14,14 +14,14 @@ phổ biến: gửi yêu cầu HTTP, nhận dữ liệu JSON).
 | Tài khoản & phân quyền (RBAC) | Đăng ký/đăng nhập JWT (token ngắn 15 phút + token làm mới 30 ngày), menu/chức năng theo vai trò: Super Admin, Quản lý cửa hàng, Kho, CSKH, Marketing |
 | Bán hàng | Sản phẩm + biến thể (màu/size), tồn kho đa kho, giỏ hàng, mã giảm giá, checkout trừ kho trong transaction (giao dịch nguyên tử: đúng hoặc không làm gì) |
 | Sau bán | Thanh toán (COD/chuyển khoản/ví, webhook idempotent — cổng thanh toán gọi lại nhiều lần cũng chỉ tính 1 lần), vận đơn + tracking, đổi trả, đánh giá, hoàn tiền, hóa đơn |
-| Media & Marketing | Upload ảnh/video/tệp lên kho object storage chuẩn S3 (MinIO), banner, chiến dịch, gửi email HTML qua SMTP |
+| Media & Marketing | Upload ảnh/video/tệp lên kho object storage chuẩn S3 (RustFS), banner, chiến dịch, gửi email HTML qua SMTP |
 | Vận hành | Nhật ký kiểm toán (audit log), cấu hình hệ thống, báo cáo doanh thu, rate-limit chống brute-force, CORS whitelist |
 
 Chi tiết từng endpoint: [`docs/API.md`](docs/API.md).
 
 ## Chạy nhanh (2 cách)
 
-**A. Docker — khuyên dùng (1 lệnh là đủ MySQL + API + MinIO + Admin + HTTPS):**
+**A. Docker — khuyên dùng (1 lệnh là đủ MySQL + API + RustFS + Admin + HTTPS):**
 ```powershell
 Copy-Item .env.docker.example .env.docker   # sửa domain + mật khẩu trong file
 docker compose --env-file .env.docker up -d --build
@@ -61,7 +61,7 @@ backend/
 ├── docs/            # API.md · FRONTEND.md · DOCKER.md (tài liệu chi tiết)
 ├── docker/          # mysql-init/ · caddy/Caddyfile
 ├── src/
-│   ├── config/      # db.js (MySQL pool) · storage.js (S3/MinIO) · mailer.js (SMTP)
+│   ├── config/      # db.js (MySQL pool) · storage.js (S3) · mailer.js (SMTP)
 │   ├── middleware/  # auth.js (JWT + RBAC + thu hồi phiên) · security.js (CORS, rate-limit, HTTPS)
 │   ├── routes/      # 12 module: auth, users, catalog, media, email, inventory,
 │   │                # cart, orders, payments, shipping, promotions, reviews, extra

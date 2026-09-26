@@ -29,10 +29,10 @@ function s3() {
   if (!process.env.S3_ENDPOINT || !process.env.S3_ACCESS_KEY || !process.env.S3_SECRET_KEY)
     throw Object.assign(new Error('Chua cau hinh S3 (S3_ENDPOINT/S3_ACCESS_KEY/S3_SECRET_KEY)'), { status: 503 });
   client = new S3Client({
-    endpoint: process.env.S3_ENDPOINT, // nội bộ: http://minio:9000
+    endpoint: process.env.S3_ENDPOINT, // nội bộ: http://objectstore:9000
     region: process.env.S3_REGION || 'us-east-1',
     credentials: { accessKeyId: process.env.S3_ACCESS_KEY, secretAccessKey: process.env.S3_SECRET_KEY },
-    forcePathStyle: true, // bắt buộc với MinIO
+    forcePathStyle: true, // bắt buộc với S3 tương thích nội bộ
   });
   return client;
 }
@@ -63,7 +63,7 @@ async function ensureBucket(retries = 10) {
       ensured = true;
       return;
     } catch (e) {
-      console.log(`S3: cho MinIO... lan ${i}/${retries} (${e.message?.slice(0, 80)})`);
+      console.log(`S3: cho object storage... lan ${i}/${retries} (${e.message?.slice(0, 80)})`);
       if (i === retries) throw e;
       await sleep(3000);
     }

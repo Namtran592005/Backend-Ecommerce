@@ -4,7 +4,7 @@
 |---|---|---|
 | [API.md](API.md) | Backend + Frontend | **Tham chiếu API đầy đủ**: quy ước chung, toàn bộ endpoint theo nhóm (method, quyền, body, response), bảng enum/trạng thái |
 | [FRONTEND.md](FRONTEND.md) | Team frontend | Tích hợp: luồng auth (axios mẫu), màn hình shop/tài khoản/admin, upload ảnh, gọi từ xa |
-| [DOCKER.md](DOCKER.md) | DevOps/deploy | Triển khai 1 máy chủ: MySQL + backend + MinIO + Caddy HTTPS, vận hành, backup, sự cố thường gặp |
+| [DOCKER.md](DOCKER.md) | DevOps/deploy | Triển khai 1 máy chủ: MySQL + backend + RustFS + Caddy HTTPS, vận hành, backup, sự cố thường gặp |
 
 ## Chạy nhanh (dev local)
 ```powershell
@@ -37,7 +37,7 @@ backend/
 ├── docs/            # tài liệu (bạn đang ở đây)
 ├── db/              # schema.sql (nguồn chân lý) + build-init.js (sinh init cho Docker)
 ├── src/
-│   ├── config/      # db.js, storage.js (S3/MinIO), mailer.js (SMTP)
+│   ├── config/      # db.js, storage.js (S3), mailer.js (SMTP)
 │   ├── middleware/  # auth.js (JWT+RBAC), security.js (CORS, rate-limit)
 │   ├── routes/      # auth, users, catalog, media, email, inventory, cart,
 │   │                # orders, payments, shipping, promotions, reviews, extra

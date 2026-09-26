@@ -25,7 +25,7 @@ function safeName(n) {
 const err = (res, e) => res.status(e.status || 500).json({ error: e.message || 'Loi server' });
 const cleanup = (p) => { if (p) fs.unlink(p, () => {}); };
 
-// POST /api/media/upload (multipart field "file") — ảnh/video/file vào MinIO/S3
+// POST /api/media/upload (multipart field "file") — ảnh/video/file vào object storage S3
 router.post('/upload', authRequired, requirePerm('products.write'), (req, res) => {
   upload.single('file')(req, res, async (multerErr) => {
     const tmp = req.file?.path;
@@ -48,7 +48,7 @@ router.post('/upload', authRequired, requirePerm('products.write'), (req, res) =
       const [r] = await pool.query(
         `INSERT INTO media_files (owner_user_id, storage_provider, object_key, original_name, mime_type, size_bytes)
          VALUES (?,?,?,?,?,?)`,
-        [req.user.id, 'minio', key, req.file.originalname.slice(0, 250), req.file.mimetype, req.file.size]);
+        [req.user.id, 's3', key, req.file.originalname.slice(0, 250), req.file.mimetype, req.file.size]);
       const [[row]] = await pool.query('SELECT * FROM media_files WHERE id=?', [r.insertId]);
       res.status(201).json({ ...row, url: storage.publicUrl(key) });
     } catch (e) { err(res, e); }

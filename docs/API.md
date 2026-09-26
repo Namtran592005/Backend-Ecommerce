@@ -80,7 +80,7 @@ Roles: `super_admin | store_manager | warehouse_staff | customer_support | marke
 
 ## 4. Media / object storage — `/api/media`
 
-File lưu ở MinIO (S3-compatible), phục vụ công khai `https://API_DOMAIN/files/unimate/<object_key>`.
+File lưu ở RustFS (S3-compatible), phục vụ công khai `https://API_DOMAIN/files/unimate/<object_key>`.
 
 | Method & path | Quyền | Ghi chú |
 |---|---|---|

@@ -55,7 +55,7 @@ const ART = {
 async function putArt(key, svg) {  const buf = Buffer.from(svg, 'utf8');
   await storage.putObject(key, buf, 'image/svg+xml');
   const [r] = await q(`INSERT INTO media_files (storage_provider, object_key, original_name, mime_type, size_bytes)
-    VALUES ('minio',?,?,'image/svg+xml',?)`, [key, key.split('/').pop(), buf.length]);
+    VALUES ('s3',?,?,'image/svg+xml',?)`, [key, key.split('/').pop(), buf.length]);
   return r.insertId;
 }
 
