@@ -106,7 +106,7 @@ async function createOrder({ num, userId, status, payStatus, payCode, items, cou
     if (status !== 'cancelled') {
       await q('UPDATE warehouse_stocks SET quantity = quantity - ? WHERE warehouse_id=1 AND variant_id=?', [l.qty, l.v.id]);
       await q(`INSERT INTO stock_movements (warehouse_id, variant_id, type, quantity, reference_type, reference_id, note)
-        VALUES (1,?,'sale',?,?,?,?)`, [l.v.id, -l.qty, 'order', oid, 'Ban hang ' + num]);
+        VALUES (1,?,'sale',?,?,?,?)`, [l.v.id, -l.qty, 'order', oid, 'Bán hàng ' + num]);
     }
   }
   for (const type of ['shipping', 'billing']) {
@@ -116,7 +116,7 @@ async function createOrder({ num, userId, status, payStatus, payCode, items, cou
   }
   const flow = { pending: [], confirmed: ['confirmed'], processing: ['confirmed', 'processing'], shipping: ['confirmed', 'processing', 'packed', 'shipping'], delivered: ['confirmed', 'processing', 'packed', 'shipping', 'delivered'], completed: ['confirmed', 'processing', 'packed', 'shipping', 'delivered', 'completed'], cancelled: ['cancelled'] };
   let prev = null;
-  await q('INSERT INTO order_status_history (order_id, from_status, to_status, note) VALUES (?,?,?,?)', [oid, null, 'pending', 'Tao don']);
+  await q('INSERT INTO order_status_history (order_id, from_status, to_status, note) VALUES (?,?,?,?)', [oid, null, 'pending', 'Tạo đơn']);
   for (const s of flow[status] || []) {
     await q('INSERT INTO order_status_history (order_id, from_status, to_status) VALUES (?,?,?)', [oid, prev || 'pending', s]);
     prev = s;
@@ -128,7 +128,7 @@ async function createOrder({ num, userId, status, payStatus, payCode, items, cou
   await q(`INSERT INTO payment_transactions (payment_id, transaction_type, status, amount, processed_at)
     VALUES (?, 'charge', ?, ?, ${paid ? 'DATE_SUB(NOW(6), INTERVAL ? DAY)' : 'NULL'})`, paid ? [py.insertId, 'success', total, daysAgo] : [py.insertId, 'pending', total]);
   if (paid) await q(`INSERT INTO cash_flows (type, reference_type, reference_id, amount, currency, description, occurred_at)
-    VALUES ('income','order',?,?,'VND',?,DATE_SUB(NOW(6), INTERVAL ? DAY))`, [oid, total, 'Thu tien don ' + num, daysAgo]);
+    VALUES ('income','order',?,?,'VND',?,DATE_SUB(NOW(6), INTERVAL ? DAY))`, [oid, total, 'Thu tiền đơn ' + num, daysAgo]);
   if (coupon && status !== 'cancelled') {
     const [[c]] = await q('SELECT id FROM coupons WHERE code=?', [coupon]);
     await q('INSERT INTO coupon_redemptions (coupon_id, user_id, order_id, discount_amount) VALUES (?,?,?,?)', [c.id, userId, oid, orderDiscount]);
@@ -142,9 +142,9 @@ async function createOrder({ num, userId, status, payStatus, payCode, items, cou
   for (const oi of ois) await q('INSERT INTO shipment_items (shipment_id, order_item_id, quantity) VALUES (?,?,?)', [sh.insertId, oi.id, oi.quantity]);
   if (!['pending', 'cancelled'].includes(shipStatus)) {
     await q(`INSERT INTO shipment_tracking_events (shipment_id, status, description, location, occurred_at)
-      VALUES (?,?,'Da nhan hang','Kho TP.HCM',DATE_SUB(NOW(6), INTERVAL ? DAY))`, [sh.insertId, 'picked_up', daysAgo]);
+      VALUES (?,?,'Đã nhận hàng','Kho TP.HCM',DATE_SUB(NOW(6), INTERVAL ? DAY))`, [sh.insertId, 'picked_up', daysAgo]);
     await q(`INSERT INTO shipment_tracking_events (shipment_id, status, description, location, occurred_at)
-      VALUES (?,?,'Dang van chuyen','TP.HCM',DATE_SUB(NOW(6), INTERVAL ? DAY))`, [sh.insertId, shipStatus, Math.max(0, daysAgo - 1)]);
+      VALUES (?,?,'Đang vận chuyển','TP.HCM',DATE_SUB(NOW(6), INTERVAL ? DAY))`, [sh.insertId, shipStatus, Math.max(0, daysAgo - 1)]);
   }
   if (['delivered', 'completed'].includes(status)) await q("UPDATE orders SET fulfillment_status='fulfilled' WHERE id=?", [oid]);
   if (status === 'completed') await q('UPDATE orders SET completed_at=DATE_SUB(NOW(6), INTERVAL 1 DAY) WHERE id=?', [oid]);
@@ -152,41 +152,41 @@ async function createOrder({ num, userId, status, payStatus, payCode, items, cou
 }
 
 (async () => {
-  console.log('== Xoa du lieu cu (giu RBAC + phuong thuc thanh toan) ==');
+  console.log('== Xoá dữ liệu cũ (giữ RBAC + phương thức thanh toán) ==');
   await q('SET FOREIGN_KEY_CHECKS=0');
   for (const tb of WIPE) await q(`TRUNCATE TABLE \`${tb}\``);
   await q('SET FOREIGN_KEY_CHECKS=1');
 
-  console.log('== Anh minh hoa (SVG) ==');
+  console.log('== Ảnh minh hoạ (SVG) ==');
   let storageOk = true;
-  try { await storage.ensureBucket(); } catch (e) { storageOk = false; console.log('Bo qua anh (thieu S3):', e.message); }
+  try { await storage.ensureBucket(); } catch (e) { storageOk = false; console.log('Bỏ qua ảnh (thiếu S3):', e.message); }
 
-  console.log('== Thuong hieu / danh muc / thuoc tinh ==');
+  console.log('== Thương hiệu / danh mục / thuộc tính ==');
   const BRANDS = [
-    ['UniWear', 'uniwear', 'Thoi trang phong cach, phoi do moi ngay'],
-    ['CasaHome', 'casahome', 'Do dung gia dung ben vung'],
-    ['TechZone', 'techzone', 'Phu kien cong nghe chinh hieu'],
-    ['GlowLab', 'glowlab', 'Cham soc sac dep tu nhien'],
-    ['ActiveFit', 'activefit', 'Dung cu the thao va sinh hoat'],
-    ['OfficePro', 'officepro', 'Do dung van phong chuyen ngiep'],
+    ['UniWear', 'uniwear', 'Thời trang phong cách, phối đồ mỗi ngày'],
+    ['CasaHome', 'casahome', 'Đồ dùng gia dụng bền vững'],
+    ['TechZone', 'techzone', 'Phụ kiện công nghệ chính hãng'],
+    ['GlowLab', 'glowlab', 'Chăm sóc sắc đẹp tự nhiên'],
+    ['ActiveFit', 'activefit', 'Dụng cụ thể thao và sinh hoạt'],
+    ['OfficePro', 'officepro', 'Đồ dùng văn phòng chuyên nghiệp'],
   ];
   for (const [n, s, d] of BRANDS) await q("INSERT INTO brands (name,slug,description,status) VALUES (?,?,?,'active')", [n, s, d]);
 
   const CATS = [
-    ['thoi-trang', 'Thoi trang', 'bi-person', 1, [
-      ['ao', 'Ao', 'bi-tag', 1], ['quan', 'Quan', 'bi-layers', 2], ['giay-dep', 'Giay dep', 'bi-handbag', 3], ['phu-kien', 'Phu kien', 'bi-bag', 4]]],
-    ['phu-kien-thoi-trang', 'Phu kien', 'bi-bag-heart', 2, [
-      ['balo-tui', 'Balo & tui', 'bi-briefcase', 1], ['dong-ho', 'Dong ho', 'bi-smartwatch', 2]]],
-    ['gia-dung', 'Gia dung', 'bi-house-door', 3, [
-      ['noi-chao', 'Noi & chao', 'bi-circle', 1], ['dung-cu', 'Dung cu', 'bi-cup-hot', 2]]],
-    ['dien-tu', 'Dien tu', 'bi-cpu', 4, [
-      ['tai-nghe', 'Tai nghe', 'bi-headphones', 1], ['sac-pin', 'Sac & pin', 'bi-battery-charging', 2], ['dien-thoai', 'Dien thoai', 'bi-phone', 3]]],
-    ['the-thao', 'The thao', 'bi-bicycle', 5, [
-      ['dung-cu-the-thao', 'Dung cu', 'bi-basketball', 1]]],
-    ['lam-dep', 'Lam dep', 'bi-heart-pulse', 6, [
-      ['cham-soc-da', 'Cham soc da', 'bi-droplet', 1]]],
-    ['van-phong', 'Van phong', 'bi-briefcase', 7, [
-      ['ghe-ban', 'Ghe & ban', 'bi-chair', 1]]],
+    ['thoi-trang', 'Thời trang', 'bi-person', 1, [
+      ['ao', 'Áo', 'bi-tag', 1], ['quan', 'Quản', 'bi-layers', 2], ['giay-dep', 'Giày dép', 'bi-handbag', 3], ['phu-kien', 'Phụ kiện', 'bi-bag', 4]]],
+    ['phu-kien-thoi-trang', 'Phụ kiện', 'bi-bag-heart', 2, [
+      ['balo-tui', 'Balo & túi', 'bi-briefcase', 1], ['dong-ho', 'Đồng hồ', 'bi-smartwatch', 2]]],
+    ['gia-dung', 'Gia dụng', 'bi-house-door', 3, [
+      ['noi-chao', 'Nồi & chảo', 'bi-circle', 1], ['dung-cu', 'Dụng cụ', 'bi-cup-hot', 2]]],
+    ['dien-tu', 'Điện tử', 'bi-cpu', 4, [
+      ['tai-nghe', 'Tai nghe', 'bi-headphones', 1], ['sac-pin', 'Sạc & pin', 'bi-battery-charging', 2], ['dien-thoai', 'Điện thoại', 'bi-phone', 3]]],
+    ['the-thao', 'Thể thao', 'bi-bicycle', 5, [
+      ['dung-cu-the-thao', 'Dụng cụ', 'bi-basketball', 1]]],
+    ['lam-dep', 'Làm đẹp', 'bi-heart-pulse', 6, [
+      ['cham-soc-da', 'Chăm sóc da', 'bi-droplet', 1]]],
+    ['van-phong', 'Văn phòng', 'bi-briefcase', 7, [
+      ['ghe-ban', 'Ghế & bàn', 'bi-chair', 1]]],
   ];
   const catIds = {};
   const CAT_PALETTE = [PALETTES.blue, PALETTES.rose, PALETTES.green, PALETTES.violet, PALETTES.amber, PALETTES.teal, PALETTES.slate];
@@ -208,9 +208,9 @@ async function createOrder({ num, userId, status, payStatus, payCode, items, cou
   }
 
   const ATTRS = [
-    ['Mau sac', 'color', 'color', [['Do', '#dc2626'], ['Xanh duong', '#2563eb'], ['Den', '#111827'], ['Trang', '#f8fafc'], ['Be', '#d6bfa4'], ['Xanh olive', '#4d7c0f']]],
-    ['Kich co', 'size', 'text', [['S', 'S'], ['M', 'M'], ['L', 'L'], ['XL', 'XL']]],
-    ['Dung tich', 'capacity', 'text', [['1L', '1 lít'], ['1.5L', '1.5 lít'], ['2L', '2 lít'], ['20K', '20.000 mAh'], ['65W', '65W']]],
+    ['Màu sắc', 'color', 'color', [['Do', '#dc2626'], ['Xanh dương', '#2563eb'], ['Đen', '#111827'], ['Trắng', '#f8fafc'], ['Be', '#d6bfa4'], ['Xanh ô liu', '#4d7c0f']]],
+    ['Kích cỡ', 'size', 'text', [['S', 'S'], ['M', 'M'], ['L', 'L'], ['XL', 'XL']]],
+    ['Dung tích', 'capacity', 'text', [['1L', '1 lít'], ['1.5L', '1.5 lít'], ['2L', '2 lít'], ['20K', '20.000 mAh'], ['65W', '65W']]],
   ];
   const attrIds = {}, valIds = {};
   for (const [name, code, dtype, vals] of ATTRS) {
@@ -224,7 +224,7 @@ async function createOrder({ num, userId, status, payStatus, payCode, items, cou
     }
   }
 
-  console.log('== San pham ==');
+  console.log('== Sản phẩm ==');
   const V = {};
   async function addProduct({ brand, cats, attrs = [], name, slug, price, compare, desc, short, variants, art, tag, imgs = 2 }) {
     const [[b]] = await q('SELECT id FROM brands WHERE slug=?', [brand]);
@@ -252,93 +252,93 @@ async function createOrder({ num, userId, status, payStatus, payCode, items, cou
 
   const P = {};
   const defs = [
-    ['ao-thun-cotton', { brand: 'uniwear', cats: ['ao'], attrs: ['color', 'size'], name: 'Ao thun cotton basic', price: 249000, compare: 349000, art: ART.aoThun, tag: 'Hot', desc: 'Ao thun cotton 100% thoang mat, reu sau nhieu lan giat, phom dang nhat cho ca nam va nu.', short: 'Cotton 100%, thoang mat, reu sau nhieu lan giat' },
-      [['ATS-DO-M', 'Do / M', 249000, [valIds.color['Do'], valIds.size.M]], ['ATS-XD-L', 'Xanh duong / L', 249000, [valIds.color['Xanh duong'], valIds.size.L]], ['ATS-DEN-S', 'Den / S', 239000, [valIds.color['Den'], valIds.size.S]], ['ATS-BE-XL', 'Be / XL', 259000, [valIds.color.Be, valIds.size.XL]]]],
-    ['ao-khoac-gio', { brand: 'uniwear', cats: ['ao'], attrs: ['color', 'size'], name: 'Ao khoac gio nhe', price: 549000, compare: 699000, art: ART.aoKhoac, tag: 'Moi', desc: 'Ao khoac gio nhe, chong nang nhe, phu trang khong bi rut vet.', short: 'Chong nang nhe, phu trang khong rut vet' },
-      [['AKG-DEN-L', 'Den / L', 549000, [valIds.color.Den, valIds.size.L]], ['AKG-BE-M', 'Be / M', 549000, [valIds.color.Be, valIds.size.M]]]],
-    ['ao-so-len', { brand: 'uniwear', cats: ['ao'], attrs: ['color', 'size'], name: 'Ao so len nữ basic', price: 299000, compare: null, art: ART.aoSo, tag: null, desc: 'Ao so len cotton dai tay, gam tay, khong xuyen la.', short: 'Cotton dai tay, gam tay, khong xuyen la' },
-      [['ASL-TRANG-M', 'Trang / M', 299000, [valIds.color.Trang, valIds.size.M]], ['ASL-HB-S', 'Xanh duong / S', 299000, [valIds.color['Xanh duong'], valIds.size.S]]]],
-    ['quan-jeans-slim', { brand: 'uniwear', cats: ['quan'], attrs: ['color', 'size'], name: 'Quan jeans slim', price: 549000, compare: 699000, art: ART.quanJeans, tag: 'Hot', desc: 'Quan jeans co gian, form slim, phoi doi duoc moi phong cach.', short: 'Dan co gian, form slim, phong cach' },
-      [['QJN-XD-32', 'Xanh duong / 32', 549000, [valIds.color['Xanh duong'], valIds.size.L]], ['QJN-DEN-30', 'Den / 30', 549000, [valIds.color.Den, valIds.size.M]]]],
-    ['quan-tay-lien', { brand: 'officepro', cats: ['quan'], attrs: ['color', 'size'], name: 'Quan tay lien nhiet', price: 469000, compare: null, art: ART.quanTay, tag: null, desc: 'Quan tay lien nhiet, mat nhung nang, thich hop lam do ng nghiep.', short: 'Mat nhung nang, do ng nghiep' },
-      [['QTL-DEN-L', 'Den / L', 469000, [valIds.color.Den, valIds.size.L]], ['QTL-XD-M', 'Xanh duong / M', 469000, [valIds.color['Xanh duong'], valIds.size.M]]]],
-    ['vay-midi', { brand: 'uniwear', cats: ['ao'], attrs: ['color', 'size'], name: 'Vay midi hoa tiep', price: 469000, compare: 599000, art: ART.vay, tag: 'Moi', desc: 'Vay midi hoa tiep nhe, ton trang, phu doi giay dep.', short: 'Hoa tiep nhe, ton trang' },
-      [['VAY-BE-M', 'Be / M', 469000, [valIds.color.Be, valIds.size.M]], ['VAY-DEN-S', 'Den / S', 469000, [valIds.color.Den, valIds.size.S]]]],
-    ['giay-sneaker', { brand: 'activefit', cats: ['giay-dep'], attrs: ['color', 'size'], name: 'Giay sneaker nữ', price: 699000, compare: 899000, art: ART.giay, tag: 'Hot', desc: 'Giay sneaker de dem, gon nang, phu duoc moi do.', short: 'De dem, gon nang, phu moi do' },
-      [['GSN-TRANG-37', 'Trang / 37', 699000, [valIds.color.Trang, valIds.size.M]], ['GSN-DEN-38', 'Den / 38', 699000, [valIds.color.Den, valIds.size.L]]]],
-    ['dep-sandal', { brand: 'activefit', cats: ['giay-dep'], attrs: ['color', 'size'], name: 'Dep sandal da', price: 329000, compare: null, art: ART.dep, tag: null, desc: 'Dep sandal da that, chan doi mem, phoi don gian.', short: 'Da that, chan doi mem' },
-      [['DSP-BE-37', 'Be / 37', 329000, [valIds.color.Be, valIds.size.M]], ['DSP-TRANG-38', 'Trang / 38', 329000, [valIds.color.Trang, valIds.size.L]]]],
-    ['balo-hoc-tap', { brand: 'officepro', cats: ['balo-tui'], attrs: ['color'], name: 'Balo hoc tap chong nuoc', price: 449000, compare: 549000, art: ART.balo, tag: 'Moi', desc: 'Balo chong nuoc, ngan chua laptop 15.6 inch, day de chiu.', short: 'Chong nuoc, chua laptop 15.6 inch' },
-      [['BLO-DEN', 'Den', 449000, [valIds.color.Den]], ['BLO-XL', 'Xanh olive', 449000, [valIds.color['Xanh olive']]]]],
-    ['tui-deu', { brand: 'officepro', cats: ['balo-tui'], attrs: ['color'], name: 'Tui deu mini', price: 289000, compare: null, art: ART.tui, tag: null, desc: 'Tui deu mini, dau day chai, dung cho di chuyen ngan.', short: 'Dau day chai, di chuyen ngan' },
-      [['TUI-DEN', 'Den', 289000, [valIds.color.Den]], ['TUI-BE', 'Be', 289000, [valIds.color.Be]]]],
-    ['dong-ho-thong-minh', { brand: 'techzone', cats: ['dong-ho'], attrs: ['color'], name: 'Dong ho thong minh', price: 1290000, compare: 1590000, art: ART.dongHo, tag: 'Hot', desc: 'Dong ho thong minh theo doi nhip tim, giam sat moi, chong nuoc IP68.', short: 'Theo doi nhip tim, giam sat moi, IP68' },
-      [['DHS-DEN', 'Den', 1290000, [valIds.color.Den]], ['DHS-ROSE', 'Be', 1290000, [valIds.color.Be]]]],
-    ['noi-inox-5l', { brand: 'casahome', cats: ['noi-chao'], attrs: ['color', 'capacity'], name: 'Noi inox 5L day 5 lop', price: 890000, compare: 1090000, art: ART.noi, tag: 'Moi', desc: 'Noi inox 304 day 5 lop, giu nhiet tot, dung cho moi loai bep.', short: 'Inox 304, giu nhiet, moi loai bep' },
+    ['ao-thun-cotton', { brand: 'uniwear', cats: ['ao'], attrs: ['color', 'size'], name: 'Áo thun cotton basic', price: 249000, compare: 349000, art: ART.aoThun, tag: 'Hot', desc: 'Áo thun cotton 100% thoáng mát, reu sau nhiều lần giặt, phom dáng nhất cho cả nam và nữ.', short: 'Cotton 100%, thoáng mát, reu sau nhiều lần giặt' },
+      [['ATS-DO-M', 'Do / M', 249000, [valIds.color['Do'], valIds.size.M]], ['ATS-XD-L', 'Xanh dương / L', 249000, [valIds.color['Xanh dương'], valIds.size.L]], ['ATS-DEN-S', 'Đen / S', 239000, [valIds.color['Đen'], valIds.size.S]], ['ATS-BE-XL', 'Be / XL', 259000, [valIds.color.Be, valIds.size.XL]]]],
+    ['ao-khoac-gio', { brand: 'uniwear', cats: ['ao'], attrs: ['color', 'size'], name: 'Áo khoác gió nhẹ', price: 549000, compare: 699000, art: ART.aoKhoac, tag: 'Moi', desc: 'Áo khoác gió nhẹ, chống nắng nhẹ, phụ trang không bị rút vết.', short: 'Chống nắng nhẹ, phụ trang không rút vết' },
+      [['AKG-DEN-L', 'Đen / L', 549000, [valIds.color.Den, valIds.size.L]], ['AKG-BE-M', 'Be / M', 549000, [valIds.color.Be, valIds.size.M]]]],
+    ['ao-so-len', { brand: 'uniwear', cats: ['ao'], attrs: ['color', 'size'], name: 'Áo sơ len nữ basic', price: 299000, compare: null, art: ART.aoSo, tag: null, desc: 'Áo sơ len cotton dài tay, gấm tay, không xuyên lá.', short: 'Cotton dài tay, gấm tay, không xuyên lá' },
+      [['ASL-TRANG-M', 'Trắng / M', 299000, [valIds.color.Trang, valIds.size.M]], ['ASL-HB-S', 'Xanh dương / S', 299000, [valIds.color['Xanh dương'], valIds.size.S]]]],
+    ['quan-jeans-slim', { brand: 'uniwear', cats: ['quan'], attrs: ['color', 'size'], name: 'Quần jeans slim', price: 549000, compare: 699000, art: ART.quanJeans, tag: 'Hot', desc: 'Quần jeans co giãn, form slim, phối đồ được mọi phong cách.', short: 'Dện co giãn, form slim, phong cách' },
+      [['QJN-XD-32', 'Xanh dương / 32', 549000, [valIds.color['Xanh dương'], valIds.size.L]], ['QJN-DEN-30', 'Đen / 30', 549000, [valIds.color.Den, valIds.size.M]]]],
+    ['quan-tay-lien', { brand: 'officepro', cats: ['quan'], attrs: ['color', 'size'], name: 'Quần tây liên nhiệt', price: 469000, compare: null, art: ART.quanTay, tag: null, desc: 'Quần tây liên nhiệt, mặt nhung nâng, thích hợp làm đồ nghiệp dư.', short: 'Mặt nhung nâng, đồ nghiệp dư' },
+      [['QTL-DEN-L', 'Đen / L', 469000, [valIds.color.Den, valIds.size.L]], ['QTL-XD-M', 'Xanh dương / M', 469000, [valIds.color['Xanh dương'], valIds.size.M]]]],
+    ['vay-midi', { brand: 'uniwear', cats: ['ao'], attrs: ['color', 'size'], name: 'Váy midi hoa tiếp', price: 469000, compare: 599000, art: ART.vay, tag: 'Moi', desc: 'Váy midi hoa tiếp nhẹ, tôn trang, phù đôi giày dép.', short: 'Hoa tiếp nhẹ, tôn trang' },
+      [['VAY-BE-M', 'Be / M', 469000, [valIds.color.Be, valIds.size.M]], ['VAY-DEN-S', 'Đen / S', 469000, [valIds.color.Den, valIds.size.S]]]],
+    ['giay-sneaker', { brand: 'activefit', cats: ['giay-dep'], attrs: ['color', 'size'], name: 'Giay sneaker nữ', price: 699000, compare: 899000, art: ART.giay, tag: 'Hot', desc: 'Giày sneaker đế mềm, gọn nhẹ, phù được mọi đồ.', short: 'Đế mềm, gọn nhẹ, phù mọi đồ' },
+      [['GSN-TRANG-37', 'Trắng / 37', 699000, [valIds.color.Trang, valIds.size.M]], ['GSN-DEN-38', 'Đen / 38', 699000, [valIds.color.Den, valIds.size.L]]]],
+    ['dep-sandal', { brand: 'activefit', cats: ['giay-dep'], attrs: ['color', 'size'], name: 'Dép sandals da', price: 329000, compare: null, art: ART.dep, tag: null, desc: 'Dép sandals da thật, chân đôi mềm, phối đơn giản.', short: 'Da thật, chân đôi mềm' },
+      [['DSP-BE-37', 'Be / 37', 329000, [valIds.color.Be, valIds.size.M]], ['DSP-TRANG-38', 'Trắng / 38', 329000, [valIds.color.Trang, valIds.size.L]]]],
+    ['balo-hoc-tap', { brand: 'officepro', cats: ['balo-tui'], attrs: ['color'], name: 'Balo học tập chống nước', price: 449000, compare: 549000, art: ART.balo, tag: 'Moi', desc: 'Balo chống nước, ngăn chứa laptop 15.6 inch, dây đeo chịu.', short: 'Chống nước, chứa laptop 15.6 inch' },
+      [['BLO-DEN', 'Đen', 449000, [valIds.color.Den]], ['BLO-XL', 'Xanh ô liu', 449000, [valIds.color['Xanh ô liu']]]]],
+    ['tui-deu', { brand: 'officepro', cats: ['balo-tui'], attrs: ['color'], name: 'Túi dựng mini', price: 289000, compare: null, art: ART.tui, tag: null, desc: 'Túi dựng mini, dâu dây chắc, dùng cho di chuyển ngắn.', short: 'Dâu dây chắc, di chuyển ngắn' },
+      [['TUI-DEN', 'Đen', 289000, [valIds.color.Den]], ['TUI-BE', 'Be', 289000, [valIds.color.Be]]]],
+    ['dong-ho-thong-minh', { brand: 'techzone', cats: ['dong-ho'], attrs: ['color'], name: 'Đồng hồ thông minh', price: 1290000, compare: 1590000, art: ART.dongHo, tag: 'Hot', desc: 'Đồng hồ thông minh theo dõi nhịp tim, giám sát môi, chống nước IP68.', short: 'Theo dõi nhịp tim, giám sát môi, IP68' },
+      [['DHS-DEN', 'Đen', 1290000, [valIds.color.Den]], ['DHS-ROSE', 'Be', 1290000, [valIds.color.Be]]]],
+    ['noi-inox-5l', { brand: 'casahome', cats: ['noi-chao'], attrs: ['color', 'capacity'], name: 'Nồi inox 5L đáy 5 lớp', price: 890000, compare: 1090000, art: ART.noi, tag: 'Moi', desc: 'Nồi inox 304 đáy 5 lớp, giữ nhiệt tốt, dùng cho mọi loại bếp.', short: 'Inox 304, giữ nhiệt, mọi loại bếp' },
       [['NOI-5L', '5 lít', 890000, [valIds.color.Trang, valIds.capacity['2L']]]]],
-    ['noi-dien-ap', { brand: 'casahome', cats: ['noi-chao'], attrs: ['color', 'capacity'], name: 'Noi dien ap 1.5L', price: 649000, compare: null, art: ART.noi, tag: null, desc: 'Noi dien ap 1.5L, long inox, bat nhanh, hao dien it.', short: 'Long inox, bat nhanh, it hao dien' },
+    ['noi-dien-ap', { brand: 'casahome', cats: ['noi-chao'], attrs: ['color', 'capacity'], name: 'Nồi điện áp 1.5L', price: 649000, compare: null, art: ART.noi, tag: null, desc: 'Nồi điện áp 1.5L, lòng inox, bắt nhanh, hao điện ít.', short: 'Lòng inox, bắt nhanh, ít hao điện' },
       [['NDA-15L', '1.5 lít', 649000, [valIds.size.M, valIds.capacity['1.5L']]]]],
-    ['chai-thuy-tinh', { brand: 'casahome', cats: ['noi-chao'], attrs: ['capacity'], name: 'Chai thuy tinh chong nhiet', price: 189000, compare: 249000, art: ART.chai, tag: null, desc: 'Chai thuy tinh chong nhiet, dung cho nuoc chanh va tra.', short: 'Chong nhiet, dung cho nuoc uong' },
+    ['chai-thuy-tinh', { brand: 'casahome', cats: ['noi-chao'], attrs: ['capacity'], name: 'Chai thủy tinh chống nhiệt', price: 189000, compare: 249000, art: ART.chai, tag: null, desc: 'Chai thủy tinh chống nhiệt, dùng cho nước chanh và trà.', short: 'Chống nhiệt, dùng cho nước uống' },
       [['CTN-1L', '1 lít', 189000, [valIds.capacity['1L']]]]],
-    ['den-ban-hoc', { brand: 'officepro', cats: ['dung-cu'], attrs: ['color'], name: 'Den ban hoc LED 3 mau', price: 329000, compare: 399000, art: ART.den, tag: 'Hot', desc: 'Den ban hoc LED khong chap, 3 mau sang, di chinh do sang.', short: 'Khong chap, 3 mau sang, di chinh do sang' },
-      [['DBH-TRANG', 'Trang', 329000, [valIds.color.Trang]], ['DBH-DEN', 'Den', 329000, [valIds.color.Den]]]],
-    ['quat-cam-tay', { brand: 'casahome', cats: ['dung-cu'], attrs: ['color'], name: 'Quat cam tay sac nhanh', price: 189000, compare: null, art: ART.quat, tag: null, desc: 'Quat cam tay sac nhanh, 3 cap do, ngan gop.', short: 'Sac nhanh, 3 cap do, ngan gop' },
-      [['QCT-TRANG', 'Trang', 189000, [valIds.color.Trang]]]],
-    ['tai-nghe-chong-on', { brand: 'techzone', cats: ['tai-nghe'], attrs: ['color'], name: 'Tai nghe chong on ENC', price: 749000, compare: 999000, art: ART.taiNghe, tag: 'Moi', desc: 'Tai nghe Bluetooth chong on ENC, pin 30 gio, sac nhanh.', short: 'Chong on ENC, pin 30 gio' },
-      [['TNG-BT-DEN', 'Den', 749000, [valIds.color.Den]], ['TNG-BT-TRANG', 'Trang', 749000, [valIds.color.Trang]]]],
-    ['sac-du-phong-20k', { brand: 'techzone', cats: ['sac-pin'], attrs: ['color', 'capacity'], name: 'Sac du phong 20000mAh', price: 489000, compare: 649000, art: ART.sac, tag: 'Hot', desc: 'Sac du phong 20000mAh, sac nhanh 22.5W, 2 cong ra.', short: '20000mAh, sac nhanh 22.5W, 2 cong' },
-      [['SAC-20K-DEN', 'Den', 489000, [valIds.color.Den, valIds.capacity['20K']]]]],
-    ['sac-nhanh-65w', { brand: 'techzone', cats: ['sac-pin'], attrs: ['capacity'], name: 'Sac nhanh GaN 65W', price: 679000, compare: null, art: ART.sac, tag: null, desc: 'Bam sac nhanh GaN 65W, sac laptop va dien thoai, nho gon.', short: 'GaN 65W, sac laptop va dien thoai' },
+    ['den-ban-hoc', { brand: 'officepro', cats: ['dung-cu'], attrs: ['color'], name: 'Đèn bàn học LED 3 màu', price: 329000, compare: 399000, art: ART.den, tag: 'Hot', desc: 'Đèn bàn học LED không chập, 3 màu sáng, điều chỉnh độ sáng.', short: 'Không chập, 3 màu sáng, điều chỉnh độ sáng' },
+      [['DBH-TRANG', 'Trắng', 329000, [valIds.color.Trang]], ['DBH-DEN', 'Đen', 329000, [valIds.color.Den]]]],
+    ['quat-cam-tay', { brand: 'casahome', cats: ['dung-cu'], attrs: ['color'], name: 'Quạt cầm tay sạc nhanh', price: 189000, compare: null, art: ART.quat, tag: null, desc: 'Quạt cầm tay sạc nhanh, 3 cấp độ, ngắn gọp.', short: 'Sạc nhanh, 3 cấp độ, ngắn gọp' },
+      [['QCT-TRANG', 'Trắng', 189000, [valIds.color.Trang]]]],
+    ['tai-nghe-chong-on', { brand: 'techzone', cats: ['tai-nghe'], attrs: ['color'], name: 'Tai nghe chống ồn ENC', price: 749000, compare: 999000, art: ART.taiNghe, tag: 'Moi', desc: 'Tai nghe Bluetooth chống ồn ENC, pin 30 giờ, sạc nhanh.', short: 'Chống ồn ENC, pin 30 giờ' },
+      [['TNG-BT-DEN', 'Đen', 749000, [valIds.color.Den]], ['TNG-BT-TRANG', 'Trắng', 749000, [valIds.color.Trang]]]],
+    ['sac-du-phong-20k', { brand: 'techzone', cats: ['sac-pin'], attrs: ['color', 'capacity'], name: 'Sạc dự phòng 20000mAh', price: 489000, compare: 649000, art: ART.sac, tag: 'Hot', desc: 'Sạc dự phòng 20000mAh, sạc nhanh 22.5W, 2 cổng ra.', short: '20000mAh, sạc nhanh 22.5W, 2 cổng' },
+      [['SAC-20K-DEN', 'Đen', 489000, [valIds.color.Den, valIds.capacity['20K']]]]],
+    ['sac-nhanh-65w', { brand: 'techzone', cats: ['sac-pin'], attrs: ['capacity'], name: 'Sạc nhanh GaN 65W', price: 679000, compare: null, art: ART.sac, tag: null, desc: 'Bộ sạc nhanh GaN 65W, sạc laptop và điện thoại, nhỏ gọn.', short: 'GaN 65W, sạc laptop và điện thoại' },
       [['SCN-65W', '65W', 679000, [valIds.capacity['65W']]]]],
-    ['dien-thoai-unimate-x', { brand: 'techzone', cats: ['dien-thoai'], attrs: ['color'], name: 'Dien thoai UniMate X', price: 8990000, compare: 9990000, art: ART.dienThoai, tag: 'Moi', desc: 'Man 6.7 inch, camera 108MP, pin 5000mAh, sac 65W.', short: 'Man 6.7 inch, camera 108MP, pin 5000mAh' },
-      [['DTU-DEN', 'Den', 8990000, [valIds.color.Den]]]],
-    ['co-giay-inox', { brand: 'casahome', cats: ['dung-cu'], attrs: ['color'], name: 'Co gay inox ca', price: 149000, compare: 189000, art: ART.co, tag: null, desc: 'Co gay inox 304, chan nhiet tot, dung cho ca phe.', short: 'Inox 304, chan nhiet tot' },
-      [['CGI-TRANG', 'Trang', 149000, [valIds.color.Trang]]]],
-    ['ghe-van-phong', { brand: 'officepro', cats: ['ghe-ban'], attrs: ['color'], name: 'Ghe van phong da mesh', price: 2890000, compare: 3290000, art: ART.ghe, tag: 'Hot', desc: 'Ghe van phong da mesh, chong gia, nghi ngoi, di chuyen gon.', short: 'Da mesh, chong gia, di chuyen gon' },
-      [['GVP-DEN', 'Den', 2890000, [valIds.color.Den]]]],
+    ['dien-thoai-unimate-x', { brand: 'techzone', cats: ['dien-thoai'], attrs: ['color'], name: 'Điện thoại UniMate X', price: 8990000, compare: 9990000, art: ART.dienThoai, tag: 'Moi', desc: 'Màn 6.7 inch, camera 108MP, pin 5000mAh, sạc 65W.', short: 'Màn 6.7 inch, camera 108MP, pin 5000mAh' },
+      [['DTU-DEN', 'Đen', 8990000, [valIds.color.Den]]]],
+    ['co-giay-inox', { brand: 'casahome', cats: ['dung-cu'], attrs: ['color'], name: 'Cỏ gắn inox ca', price: 149000, compare: 189000, art: ART.co, tag: null, desc: 'Cỏ gắn inox 304, chắn nhiệt tốt, dùng cho cà phê.', short: 'Inox 304, chắn nhiệt tốt' },
+      [['CGI-TRANG', 'Trắng', 149000, [valIds.color.Trang]]]],
+    ['ghe-van-phong', { brand: 'officepro', cats: ['ghe-ban'], attrs: ['color'], name: 'Ghế văn phòng da mesh', price: 2890000, compare: 3290000, art: ART.ghe, tag: 'Hot', desc: 'Ghế văn phòng da mesh, thoáng khí, nghỉ ngơi, di chuyển gọn.', short: 'Da mesh, thoáng khí, di chuyển gọn' },
+      [['GVP-DEN', 'Đen', 2890000, [valIds.color.Den]]]],
   ];
 
   for (const [slug, cfg, variants] of defs) {
     P[slug] = await addProduct({ ...cfg, slug, variants });
   }
 
-  console.log('== Kho hang ==');
-  await q("INSERT INTO warehouses (code,name,address,province_code,status) VALUES ('HCM','Kho TP.HCM','Khu cong nghe 1, Quang Trung, Quan 7','79','active'),('HN','Kho Ha Noi','Nam Thang Long, Nam Tu Liem','01','active')");
+  console.log('== Kho hàng ==');
+  await q("INSERT INTO warehouses (code,name,address,province_code,status) VALUES ('HCM','Kho TP.HCM','Khu công nghệ 1, Quang Trung, Quận 7','79','active'),('HN','Kho Hà Nội','Nam Thăng Long, Nam Từ Liêm','01','active')");
   for (const [sku, variantId] of Object.entries(V)) {
     const qty = 20 + Math.floor(Math.random() * 180);
     await q('INSERT INTO warehouse_stocks (warehouse_id,variant_id,quantity,reserved_quantity,reorder_level) VALUES (1,?,?,0,?)', [variantId, qty, 15]);
     if (Math.random() > 0.4) await q('INSERT INTO warehouse_stocks (warehouse_id,variant_id,quantity,reserved_quantity,reorder_level) VALUES (2,?,?,0,?)', [variantId, 10 + Math.floor(Math.random() * 60), 8]);
   }
   for (const sku of ['NOI-5L', 'NDA-15L', 'DBH-TRANG']) {
-    await q("INSERT INTO stock_movements (warehouse_id,variant_id,type,quantity,note) VALUES (1,?,'adjustment',-1,'Kiem ke mat hang')", [V[sku]]);
+    await q("INSERT INTO stock_movements (warehouse_id,variant_id,type,quantity,note) VALUES (1,?,'adjustment',-1,'Kiểm kê hàng hóa')", [V[sku]]);
   }
 
-  console.log('== Hinh thuc giao / coupon / khuyen mai ==');
-  await q("INSERT INTO shipping_methods (provider_id,code,name,description,base_fee,is_active,sort_order) VALUES (1,'NHANH','Giao nhanh','Nhan trong 24 gio noi bang','30000',TRUE,1),(1,'TIETKIEM','Giao tiet kiem','Tiet kiem 3-5 ngay','18000',TRUE,2),(1,'HOATOC','Giao hoa toc','Sanh 2 gio trong TP.HCM','50000',TRUE,3),(1,'CHUYEN','Giao chuyen kho','Chuyen kho dac biet','0',TRUE,4)");
+  console.log('== Hình thức giao / coupon / khuyến mãi ==');
+  await q("INSERT INTO shipping_methods (provider_id,code,name,description,base_fee,is_active,sort_order) VALUES (1,'NHANH','Giao nhanh','Nhận trong 24 giờ nội bộ','30000',TRUE,1),(1,'TIETKIEM','Giao tiết kiệm','Tiết kiệm 3-5 ngày','18000',TRUE,2),(1,'HOATOC','Giao hỏa tốc','Sẵn 2 giờ trong TP.HCM','50000',TRUE,3),(1,'CHUYEN','Giao chuyển kho','Chuyển kho đặc biệt','0',TRUE,4)");
   await q(`INSERT INTO coupons (code,type,value,minimum_order_amount,maximum_discount_amount,usage_limit,used_count,starts_at,expires_at,status)
     VALUES ('CHAO10','percentage',10,200000,50000,1000,0,'2020-01-01','2030-01-01','active'),
            ('FREESHIP','free_shipping',0,500000,NULL,500,0,'2020-01-01','2030-01-01','active'),
            ('NEW50','fixed',50000,300000,50000,300,0,'2020-01-01','2030-01-01','active'),
            ('HETDUNG','percentage',20,100000,30000,100,0,'2020-01-01','2020-02-01','expired')`);
   await q(`INSERT INTO promotions (name,code,description,type,value,maximum_discount_amount,starts_at,ends_at,priority,stackable,status)
-    VALUES (CONCAT('Sale he ', YEAR(CURDATE())),'SALEHE','Giam gia toan bo thoi trang','percentage',15,150000,'2020-01-01','2030-01-01',10,FALSE,'active'),
-           ('Mua 2 giam them','MUA2','Giam them cho don tu 2 san pham','percentage',5,50000,'2020-01-01','2030-01-01',5,TRUE,'active')`);
+    VALUES (CONCAT('Sale hè ', YEAR(CURDATE())),'SALEHE','Giảm giá toàn bộ thời trang','percentage',15,150000,'2020-01-01','2030-01-01',10,FALSE,'active'),
+           ('Mua 2 giảm thêm','MUA2','Giảm thêm cho đơn từ 2 sản phẩm','percentage',5,50000,'2020-01-01','2030-01-01',5,TRUE,'active')`);
 
-  console.log('== Nguoi dung ==');
-  const adminId = await createUser({ email: DEFAULT_ADMIN_EMAIL, phone: '0900000001', pw: process.env.ADMIN_PASSWORD || DEFAULT_ADMIN_PASSWORD, role: 'super_admin', first: 'Quan', last: 'Tri' });
-  await createUser({ email: 'manager@example.com', phone: '0900000002', pw: 'Staff123!', role: 'store_manager', first: 'Cua hang', last: 'Truong' });
-  await createUser({ email: 'kho@example.com', phone: '0900000003', pw: 'Staff123!', role: 'warehouse_staff', first: 'Thu', last: 'Kho' });
-  await createUser({ email: 'cskh@example.com', phone: '0900000004', pw: 'Staff123!', role: 'customer_support', first: 'Cham soc', last: 'Khach' });
-  await createUser({ email: 'mkt@example.com', phone: '0900000005', pw: 'Staff123!', role: 'marketing', first: 'Tiep', last: 'Thi' });
+  console.log('== Người dùng ==');
+  const adminId = await createUser({ email: DEFAULT_ADMIN_EMAIL, phone: '0900000001', pw: process.env.ADMIN_PASSWORD || DEFAULT_ADMIN_PASSWORD, role: 'super_admin', first: 'Quản', last: 'Trị' });
+  await createUser({ email: 'manager@example.com', phone: '0900000002', pw: 'Staff123!', role: 'store_manager', first: 'Cửa hàng', last: 'Trưởng' });
+  await createUser({ email: 'kho@example.com', phone: '0900000003', pw: 'Staff123!', role: 'warehouse_staff', first: 'Thủ', last: 'Kho' });
+  await createUser({ email: 'cskh@example.com', phone: '0900000004', pw: 'Staff123!', role: 'customer_support', first: 'Chăm sóc', last: 'Khách' });
+  await createUser({ email: 'mkt@example.com', phone: '0900000005', pw: 'Staff123!', role: 'marketing', first: 'Tiếp', last: 'Thị' });
 
   const CUSTOMERS = [
-    ['an@example.com', '0911111111', 'An', 'Nguyen', 'male', 'Nguyen Van An', 'TP Ho Chi Minh', 'Quan 1', 'Phuong Ben Nghe', '123 Le Loi'],
-    ['binh@example.com', '0922222222', 'Binh', 'Tran', 'male', 'Tran Van Binh', 'Ha Noi', 'Cau Giay', 'Phuong Dich Vong', '45 Xuan Thuy'],
-    ['chi@example.com', '0933333333', 'Chi', 'Le', 'female', 'Le Thi Chi', 'TP Ho Chi Minh', 'Quan 3', 'Phuong 6', '78 Cach Mang Thang 8'],
-    ['dung@example.com', '0944444444', 'Dung', 'Pham', 'female', 'Pham Thu Dung', 'Da Nang', 'Hai Chau', 'Phuong Hai Chau', '12 Tran Phu'],
-    ['hieu@example.com', '0955555555', 'Hieu', 'Vo', 'male', 'Vo Anh Hieu', 'TP Ho Chi Minh', 'Binh Thanh', 'Phuong 25', '200 Nguyen Van Luu'],
-    ['lan@example.com', '0966666666', 'Lan', 'Ho', 'female', 'Ho Thanh Lan', 'Ha Noi', 'Hoan Kiem', 'Phuong Hang Bai', '8 Hang Tho'],
-    ['minh@example.com', '0977777777', 'Minh', 'Dang', 'male', 'Dang Duc Minh', 'Can Tho', 'Ninh Kieu', 'Phuong An Hung', '30 Hai Ba Trung'],
+    ['an@example.com', '0911111111', 'An', 'Nguyễn', 'male', 'Nguyễn Văn An', 'TP Hồ Chí Minh', 'Quận 1', 'Phường Bến Nghé', '123 Lê Lợi'],
+    ['binh@example.com', '0922222222', 'Bình', 'Trần', 'male', 'Trần Văn Bình', 'Hà Nội', 'Cầu Giấy', 'Phường Dịch Vọng', '45 Xuân Thủy'],
+    ['chi@example.com', '0933333333', 'Chi', 'Le', 'female', 'Lê Thị Chi', 'TP Hồ Chí Minh', 'Quận 3', 'Phường 6', '78 Cách Mạng Tháng 8'],
+    ['dung@example.com', '0944444444', 'Dung', 'Pham', 'female', 'Phạm Thu Dung', 'Đà Nẵng', 'Hải Châu', 'Phường Hải Châu', '12 Trần Phụ'],
+    ['hieu@example.com', '0955555555', 'Hiếu', 'Vo', 'male', 'Võ Anh Hiếu', 'TP Hồ Chí Minh', 'Bình Thạnh', 'Phường 25', '200 Nguyễn Văn Lưu'],
+    ['lan@example.com', '0966666666', 'Lan', 'Ho', 'female', 'Hồ Thanh Lan', 'Hà Nội', 'Hoàn Kiếm', 'Phường Hàng Bại', '8 Hàng Thô'],
+    ['minh@example.com', '0977777777', 'Minh', 'Dang', 'male', 'Đặng Đức Minh', 'Cần Thơ', 'Ninh Kiều', 'Phường An Hưng', '30 Hai Bà Trưng'],
   ];
   const customers = {};
   for (const [email, phone, first, last, gender, rname, province, district, ward, line] of CUSTOMERS) {
@@ -356,26 +356,26 @@ async function createOrder({ num, userId, status, payStatus, payCode, items, cou
   const minhId = customers['minh@example.com'];
 
   const ADDR = {
-    an: { name: 'Nguyen Van An', phone: '0911111111', email: 'an@example.com', province: 'TP Ho Chi Minh', district: 'Quan 1', ward: 'Phuong Ben Nghe', line: '123 Le Loi' },
-    binh: { name: 'Tran Van Binh', phone: '0922222222', email: 'binh@example.com', province: 'Ha Noi', district: 'Cau Giay', ward: 'Phuong Dich Vong', line: '45 Xuan Thuy' },
-    chi: { name: 'Le Thi Chi', phone: '0933333333', email: 'chi@example.com', province: 'TP Ho Chi Minh', district: 'Quan 3', ward: 'Phuong 6', line: '78 Cach Mang Thang 8' },
-    dung: { name: 'Pham Thu Dung', phone: '0944444444', email: 'dung@example.com', province: 'Da Nang', district: 'Hai Chau', ward: 'Phuong Hai Chau', line: '12 Tran Phu' },
-    hieu: { name: 'Vo Anh Hieu', phone: '0955555555', email: 'hieu@example.com', province: 'TP Ho Chi Minh', district: 'Binh Thanh', ward: 'Phuong 25', line: '200 Nguyen Van Luu' },
-    lan: { name: 'Ho Thanh Lan', phone: '0966666666', email: 'lan@example.com', province: 'Ha Noi', district: 'Hoan Kiem', ward: 'Phuong Hang Bai', line: '8 Hang Tho' },
+    an: { name: 'Nguyễn Văn An', phone: '0911111111', email: 'an@example.com', province: 'TP Hồ Chí Minh', district: 'Quận 1', ward: 'Phường Bến Nghé', line: '123 Lê Lợi' },
+    binh: { name: 'Trần Văn Bình', phone: '0922222222', email: 'binh@example.com', province: 'Hà Nội', district: 'Cầu Giấy', ward: 'Phường Dịch Vọng', line: '45 Xuân Thủy' },
+    chi: { name: 'Lê Thị Chi', phone: '0933333333', email: 'chi@example.com', province: 'TP Hồ Chí Minh', district: 'Quận 3', ward: 'Phường 6', line: '78 Cách Mạng Tháng 8' },
+    dung: { name: 'Phạm Thu Dung', phone: '0944444444', email: 'dung@example.com', province: 'Đà Nẵng', district: 'Hải Châu', ward: 'Phường Hải Châu', line: '12 Trần Phụ' },
+    hieu: { name: 'Võ Anh Hiếu', phone: '0955555555', email: 'hieu@example.com', province: 'TP Hồ Chí Minh', district: 'Bình Thạnh', ward: 'Phường 25', line: '200 Nguyễn Văn Lưu' },
+    lan: { name: 'Hồ Thanh Lan', phone: '0966666666', email: 'lan@example.com', province: 'Hà Nội', district: 'Hoàn Kiếm', ward: 'Phường Hàng Bại', line: '8 Hàng Thô' },
   };
 
-  console.log('== Don hang ==');
+  console.log('== Đơn hàng ==');
   const ORDERS = [
-    { num: 'ORD-DEMO-0001', u: anId, status: 'pending', pay: 'unpaid', pc: 'cod', items: [['ATS-DO-M', 1]], ship: 'NHANH', fee: 30000, d: 0, a: ADDR.an, note: 'Giao gio hanh chinh' },
+    { num: 'ORD-DEMO-0001', u: anId, status: 'pending', pay: 'unpaid', pc: 'cod', items: [['ATS-DO-M', 1]], ship: 'NHANH', fee: 30000, d: 0, a: ADDR.an, note: 'Giao giờ hành chính' },
     { num: 'ORD-DEMO-0002', u: binhId, status: 'confirmed', pay: 'paid', pc: 'bank_transfer', items: [['QJN-XD-32', 1]], coupon: 'CHAO10', ship: 'NHANH', fee: 30000, d: 2, a: ADDR.binh },
     { num: 'ORD-DEMO-0003', u: chiId, status: 'shipping', pay: 'paid', pc: 'cod', items: [['SAC-20K-DEN', 2]], ship: 'HOATOC', fee: 50000, d: 3, a: ADDR.chi },
     { num: 'ORD-DEMO-0004', u: anId, status: 'delivered', pay: 'paid', pc: 'cod', items: [['NOI-5L', 1]], ship: 'TIETKIEM', fee: 18000, d: 5, a: ADDR.an },
     { num: 'ORD-DEMO-0005', u: binhId, status: 'completed', pay: 'paid', pc: 'cod', items: [['DBH-TRANG', 1], ['TNG-BT-DEN', 1]], ship: 'NHANH', fee: 30000, d: 7, a: ADDR.binh },
-    { num: 'ORD-DEMO-0006', u: chiId, status: 'cancelled', pay: 'unpaid', pc: 'cod', items: [['ATS-DEN-S', 1]], ship: 'NHANH', fee: 30000, d: 1, a: ADDR.chi, note: 'Khach doi y' },
+    { num: 'ORD-DEMO-0006', u: chiId, status: 'cancelled', pay: 'unpaid', pc: 'cod', items: [['ATS-DEN-S', 1]], ship: 'NHANH', fee: 30000, d: 1, a: ADDR.chi, note: 'Khách đổi ý' },
     { num: 'ORD-DEMO-0007', u: dungId, status: 'completed', pay: 'paid', pc: 'vnpay', items: [['COGI-TRANG', 2]], coupon: 'NEW50', ship: 'TIETKIEM', fee: 18000, d: 9, a: ADDR.dung },
     { num: 'ORD-DEMO-0008', u: hieuId, status: 'completed', pay: 'paid', pc: 'cod', items: [['GSN-TRANG-37', 1], ['TUI-DEN', 1]], ship: 'HOATOC', fee: 50000, d: 12, a: ADDR.hieu },
     { num: 'ORD-DEMO-0009', u: lanId, status: 'delivered', pay: 'paid', pc: 'bank_transfer', items: [['DHS-DEN', 1]], ship: 'NHANH', fee: 30000, d: 14, a: ADDR.lan },
-    { num: 'ORD-DEMO-0010', u: minhId, status: 'completed', pay: 'paid', pc: 'cod', items: [['QCT-TRANG', 1], ['CTN-1L', 2]], coupon: 'CHAO10', ship: 'TIETKIEM', fee: 18000, d: 17, a: { name: 'Dang Duc Minh', phone: '0977777777', province: 'Can Tho', district: 'Ninh Kieu', ward: 'Phuong An Hung', line: '30 Hai Ba Trung' } },
+    { num: 'ORD-DEMO-0010', u: minhId, status: 'completed', pay: 'paid', pc: 'cod', items: [['QCT-TRANG', 1], ['CTN-1L', 2]], coupon: 'CHAO10', ship: 'TIETKIEM', fee: 18000, d: 17, a: { name: 'Đặng Đức Minh', phone: '0977777777', province: 'Cần Thơ', district: 'Ninh Kiều', ward: 'Phường An Hưng', line: '30 Hai Bà Trưng' } },
     { num: 'ORD-DEMO-0011', u: anId, status: 'completed', pay: 'paid', pc: 'vnpay', items: [['SCN-65W', 1]], ship: 'NHANH', fee: 30000, d: 20, a: ADDR.an },
     { num: 'ORD-DEMO-0012', u: chiId, status: 'completed', pay: 'paid', pc: 'cod', items: [['BLO-DEN', 1]], coupon: 'FREESHIP', ship: 'TIETKIEM', fee: 0, d: 23, a: ADDR.chi },
     { num: 'ORD-DEMO-0013', u: dungId, status: 'processing', pay: 'pending', pc: 'bank_transfer', items: [['VAY-BE-M', 1]], ship: 'NHANH', fee: 30000, d: 1, a: ADDR.dung },
@@ -388,38 +388,38 @@ async function createOrder({ num, userId, status, payStatus, payCode, items, cou
     orderIds[o.num] = await createOrder({ num: o.num, userId: o.u, status: o.status, payStatus: o.pay, payCode: o.pc, items, coupon: o.coupon, shipCode: o.ship, shipFee: o.fee, daysAgo: o.d, address: o.a, note: o.note });
   }
 
-  console.log('== Review / doi tra / banner / campaign ==');
+  console.log('== Review / đổi trả / banner / campaign ==');
   const REVIEWS = [
-    ['sac-du-phong-20k', binhId, 'ORD-DEMO-0005', 5, 'Pin tru, sac nhanh', 'Sac nhanh het 50% trong 30 phut, pin dung ca ngay.'],
-    ['den-ban-hoc', binhId, 'ORD-DEMO-0005', 4, 'Sang dep', 'De nhin, khong chap, nhung hoi nang khi bat ca dem.'],
-    ['tai-nghe-chong-on', binhId, 'ORD-DEMO-0005', 5, 'Am thanh tot', 'Chong on tot, nghe nhac lau khong met tai.'],
-    ['quan-jeans-slim', binhId, 'ORD-DEMO-0002', 4, 'Form dep', 'Dung form, dung kich co.'],
-    ['noi-inox-5l', anId, 'ORD-DEMO-0004', 5, 'Giu nhiet rat tot', 'Noi qua kieu gas van giu nhiet lau.'],
-    ['giay-sneaker', hieuId, 'ORD-DEMO-0008', 4, 'De chan', 'De chan, nhe chan, phoi dep.'],
-    ['dong-ho-thong-minh', lanId, 'ORD-DEMO-0009', 5, 'Dong pin ngon', 'Dong 5 ngay, theo doi nhip tim chinh xac.'],
-    ['co-giay-inox', dungId, 'ORD-DEMO-0007', 4, 'Chat luong on', 'Inox mat, khong gi.'],
-    ['balo-hoc-tap', chiId, 'ORD-DEMO-0012', 5, 'Rong, gon', 'Chua duoc laptop 15 inch, ngan phu cham qua nhieu.'],
+    ['sac-du-phong-20k', binhId, 'ORD-DEMO-0005', 5, 'Pin trâu, sạc nhanh', 'Sạc nhanh hết 50% trong 30 phút, pin dùng cả ngày.'],
+    ['den-ban-hoc', binhId, 'ORD-DEMO-0005', 4, 'Sáng đẹp', 'Dễ nhìn, không chập, nhưng hơi nắng khi bật ca đêm.'],
+    ['tai-nghe-chong-on', binhId, 'ORD-DEMO-0005', 5, 'Âm thanh tốt', 'Chống ồn tốt, nghe nhạc lâu không mệt tai.'],
+    ['quan-jeans-slim', binhId, 'ORD-DEMO-0002', 4, 'Form đẹp', 'Đúng form, đúng kích cỡ.'],
+    ['noi-inox-5l', anId, 'ORD-DEMO-0004', 5, 'Giữ nhiệt rất tốt', 'Nồi qua kiểu gas vẫn giữ nhiệt lâu.'],
+    ['giay-sneaker', hieuId, 'ORD-DEMO-0008', 4, 'Dễ chân', 'Dễ chân, nhẹ chân, phối đẹp.'],
+    ['dong-ho-thong-minh', lanId, 'ORD-DEMO-0009', 5, 'Đóng pin ngon', 'Được 5 ngày, theo dõi nhịp tim chính xác.'],
+    ['co-giay-inox', dungId, 'ORD-DEMO-0007', 4, 'Chất lượng ổn', 'Inox mát, không gỉ.'],
+    ['balo-hoc-tap', chiId, 'ORD-DEMO-0012', 5, 'Rộng, gọn', 'Chứa được laptop 15 inch, ngăn phụ châm qua nhiều.'],
   ];
   for (const [slug, uid, orNum, rating, title, content] of REVIEWS) {
     if (!P[slug] || !uid) continue;
     await q(`INSERT INTO reviews (product_id,user_id,order_id,rating,title,content,is_verified_purchase,status)
       VALUES (?,?,?,?,?,?,TRUE,'published')`, [P[slug], uid, orderIds[orNum] || null, rating, title, content]);
   }
-  await q(`INSERT INTO reviews (product_id,user_id,rating,title,content,status) VALUES (?,?,4,'Dep','San pham dep, dung kich co','pending')`, [P['quan-tay-lien'], chiId]);
+  await q(`INSERT INTO reviews (product_id,user_id,rating,title,content,status) VALUES (?,?,4,'Đẹp','Sản phẩm đẹp, đúng kích cỡ','pending')`, [P['quan-tay-lien'], chiId]);
 
   const [oi4rows] = await q("SELECT oi.id FROM order_items oi JOIN orders o ON o.id=oi.order_id WHERE o.order_number='ORD-DEMO-0004' LIMIT 1");
   if (oi4rows[0]) {
     const [rr] = await q(`INSERT INTO returns (order_id,user_id,return_number,status,reason_code,reason_detail,customer_note)
-      VALUES (?,?,'RET-DEMO-001','requested','wrong_size','Size chan','Muon doi size lon hon')`, [orderIds['ORD-DEMO-0004'], anId]);
+      VALUES (?,?,'RET-DEMO-001','requested','wrong_size','Size chật','Muốn đổi size lớn hơn')`, [orderIds['ORD-DEMO-0004'], anId]);
     await q('INSERT INTO return_items (return_id,order_item_id,requested_quantity) VALUES (?,?,1)', [rr.insertId, oi4rows[0].id]);
     await q('INSERT INTO return_status_history (return_id,to_status) VALUES (?,?)', [rr.insertId, 'requested']);
   }
 
-  console.log('== Banner (anh minh hoa) ==');
+  console.log('== Banner (ảnh minh hoạ) ==');
   const BANNERS = [
-    { key: 'banner-sale', title: 'Sale he giam toi da 20%', kicker: 'Uu dai mua sam', sub: 'Ap dung cho toan bo thoi trang, giao nhanh toan quoc', cta: 'Xem ngay', link: '/khuyen-mai', bg1: '#0b3d9e', bg2: '#2f7fd0', deco: '#f59e0b', sort: 1 },
-    { key: 'banner-new', title: 'Hang moi ve thu 9', kicker: 'Moi', sub: 'Phong cach moi, chat lieu tot hon, gia thanh nhat', cta: 'Kham pha', link: '/san-pham', bg1: '#065f46', bg2: '#10b981', deco: '#fde68a', sort: 2 },
-    { key: 'banner-tech', title: 'Phu kien cong nghe chinh hang', kicker: 'TechZone', sub: 'Tai nghe chong on, sac nhanh, bao hanh 12 thang', cta: 'Mua ngay', link: '/san-pham?danh-muc=dien-thoai', bg1: '#4c1d95', bg2: '#8b5cf6', deco: '#fbbf24', sort: 3 },
+    { key: 'banner-sale', title: 'Sale hè giảm tới đã 20%', kicker: 'Ưu đãi mua sắm', sub: 'Áp dụng cho toàn bộ thời trang, giao nhanh toàn quốc', cta: 'Xem ngay', link: '/khuyen-mai', bg1: '#0b3d9e', bg2: '#2f7fd0', deco: '#f59e0b', sort: 1 },
+    { key: 'banner-new', title: 'Hàng mới về tháng 9', kicker: 'Moi', sub: 'Phong cách mới, chất liệu tốt hơn, giá thành nhất', cta: 'Khám phá', link: '/san-pham', bg1: '#065f46', bg2: '#10b981', deco: '#fde68a', sort: 2 },
+    { key: 'banner-tech', title: 'Phụ kiện công nghệ chính hãng', kicker: 'TechZone', sub: 'Tai nghe chống ồn, sạc nhanh, bảo hành 12 tháng', cta: 'Mua ngay', link: '/san-pham?danh-muc=dien-thoai', bg1: '#4c1d95', bg2: '#8b5cf6', deco: '#fbbf24', sort: 3 },
   ];
   for (const b of BANNERS) {
     let mid = null;
@@ -432,18 +432,18 @@ async function createOrder({ num, userId, status, payStatus, payCode, items, cou
       [b.title, mid, midMobile, b.link, b.title, b.sort]);
   }
 
-  const [cp] = await q("INSERT INTO campaigns (name,description,status,created_by) VALUES ('Khai truong UniMate','Giam gia toan bo 20% trong 2 tuan dau','active',?)", [adminId]);
+  const [cp] = await q("INSERT INTO campaigns (name,description,status,created_by) VALUES ('Khai trương UniMate','Giảm giá toàn bộ 20% trong 2 tuần đầu','active',?)", [adminId]);
   await q('INSERT INTO campaign_products (campaign_id,product_id) VALUES (?,?),(?,?),(?,?)', [cp.insertId, P['ao-thun-cotton'], cp.insertId, P['sac-du-phong-20k'], cp.insertId, P['tai-nghe-chong-on']]);
   await q(`INSERT INTO notifications (user_id,type,title,body) VALUES
-    (?, 'order', 'Don moi', 'Co don hang moi can xac nhan'),
-    (NULL, 'system', 'Bao tri', 'He thong bao tri luc 2h sang Chu nhat')`, [adminId]);
+    (?, 'order', 'Đơn mới', 'Có đơn hàng mới cần xác nhận'),
+    (NULL, 'system', 'Bảo trì', 'Hệ thống bảo trì lúc 2h sáng Chủ nhật')`, [adminId]);
   await q(`INSERT INTO system_settings (setting_key,setting_value,description,is_public) VALUES
-    ('shop.menu', ?, 'Menu web ban hang', TRUE)
+    ('shop.menu', ?, 'Menu web bán hàng', TRUE)
     ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value), is_public=TRUE`,
     [JSON.stringify([
-      { label: 'Hang Moi', link: '/san-pham' },
-      { label: 'Ban Chay', link: '/san-pham?sap-xep=gia-giam' },
-      { label: 'Uu Dai Dac Biet', link: '/khuyen-mai' },
+      { label: 'Hàng Mới', link: '/san-pham' },
+      { label: 'Bán Chạy', link: '/san-pham?sap-xep=gia-giam' },
+      { label: 'Ưu Đãi Đặc Biệt', link: '/khuyen-mai' },
     ])]);
 
   const [[u]] = await q('SELECT COUNT(*) n FROM users');
