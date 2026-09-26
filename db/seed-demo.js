@@ -6,7 +6,7 @@ const path = require('path');
 const { pool } = require('../src/config/db');
 const storage = require('../src/config/storage');
 const { DEFAULT_ADMIN_EMAIL, DEFAULT_ADMIN_PASSWORD } = require('./admin-defaults');
-const { productArt, bannerArt, categoryArt, paymentLogo, storeArt } = require('./demo-art');
+const { productArt, bannerArt, categoryArt, storeArt } = require('./demo-art');
 
 const q = (sql, p) => pool.query(sql, p || []);
 
@@ -525,29 +525,24 @@ async function createOrder({ num, userId, status, payStatus, payCode, items, cou
       [key, JSON.stringify(val), desc]);
   }
 
-  // Logo phương thức thanh toán. Ưu tiên logo thật trong db/assets/pay/ (tải từ trang
-  // chính thức của từng hãng), phương thức chưa có logo thì dùng hình vẽ mặc định.
+  // Logo phương thức thanh toán lấy từ db/assets/pay/<code>.svg.
+  // Logo thật của hãng (VNPay, MoMo, ZaloPay, Visa) tải từ trang chính thức;
+  // COD và chuyển khoản không có logo thương hiệu nên dùng icon tối giản.
   // Admin vẫn thay được bằng logo khác trong Thanh toán.
   if (storageOk) {
-    const BRAND_LOGO = { vnpay: 'vnpay', zalopay: 'zalopay', momo: 'momo', card: 'visa' };
     for (const code of ['cod', 'bank_transfer', 'vnpay', 'momo', 'zalopay', 'card']) {
       const [[pmRow]] = await q('SELECT id FROM payment_methods WHERE code=?', [code]);
       if (!pmRow) continue;
-      const brand = BRAND_LOGO[code];
-      const file = brand && path.join(__dirname, 'assets', 'pay', `${brand}.svg`);
-      let mid = null;
-      if (file && fs.existsSync(file)) {
-        const key = `demo/pay-${code}.svg`;
-        const buf = fs.readFileSync(file);
-        await storage.putObject(key, buf, 'image/svg+xml');
-        const [r] = await q(`INSERT INTO media_files (storage_provider, object_key, original_name, mime_type, size_bytes)
-          VALUES ('s3',?,?,'image/svg+xml',?)`, [key, `${code}.svg`, buf.length]);
-        mid = r.insertId;
-      } else {
-        mid = await putArt(`demo/pay-${code}.svg`, paymentLogo({ code }));
-      }
+      const asset = code === 'card' ? 'visa' : code;
+      const file = path.join(__dirname, 'assets', 'pay', `${asset}.svg`);
+      if (!fs.existsSync(file)) continue;
+      const key = `demo/pay-${code}.svg`;
+      const buf = fs.readFileSync(file);
+      await storage.putObject(key, buf, 'image/svg+xml');
+      const [r] = await q(`INSERT INTO media_files (storage_provider, object_key, original_name, mime_type, size_bytes)
+        VALUES ('s3',?,?,'image/svg+xml',?)`, [key, `${code}.svg`, buf.length]);
       await q('UPDATE payment_methods SET config=JSON_SET(COALESCE(config, JSON_OBJECT()), "$.logo_media_id", ?) WHERE id=?',
-        [mid, pmRow.id]);
+        [r.insertId, pmRow.id]);
     }
   }
 

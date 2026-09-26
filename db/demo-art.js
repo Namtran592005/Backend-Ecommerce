@@ -76,65 +76,6 @@ ${label ? `<text x="240" y="440" font-family="Segoe UI,Arial,sans-serif" font-si
 </svg>`;
 }
 
-// Logo phương thức thanh toán — hình khối đơn giản, nhận diện rõ ở kích thước nhỏ (48px).
-// Không để chữ phụ vì không đọc được khi thu nhỏ. Admin có thể thay bằng logo chính hãng.
-function paymentLogo({ code = 'cod' }) {
-  const W = 240, H = 150;
-  const S = (inner) => `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${inner}</svg>`;
-  // Khung trắng bo góc, viền mảnh
-  const F = (c) => `<rect x="5" y="5" width="${W - 10}" height="${H - 10}" rx="20" fill="#ffffff" stroke="${c}" stroke-width="6"/>`;
-  const T = (t, y, size, fill, cx = 120) => `<text x="${cx}" y="${y}" font-family="Segoe UI,Arial,sans-serif" font-size="${size}" font-weight="800" fill="${fill}" text-anchor="middle">${t}</text>`;
-
-  if (code === 'cod') {
-    // Cụm tờ tiền bên trái + chữ COD bên phải
-    return S(`${F('#0b3d9e')}
-<g><rect x="26" y="52" width="86" height="56" rx="8" fill="#c7dcf7"/>
-<rect x="38" y="40" width="86" height="56" rx="8" fill="#e8f1fc" stroke="#0b3d9e" stroke-width="5"/>
-<circle cx="81" cy="68" r="15" fill="#0b3d9e"/></g>
-${T('COD', 96, 50, '#0b3d9e', 172)}`);
-  }
-  if (code === 'bank_transfer') {
-    // Ngân hàng: mái + cột
-    return S(`${F('#0b3d9e')}
-<path d="M120 26 L206 62 H34 Z" fill="#0b3d9e"/>
-<rect x="56" y="66" width="16" height="42" fill="#0b3d9e" opacity=".82"/>
-<rect x="90" y="66" width="16" height="42" fill="#0b3d9e" opacity=".82"/>
-<rect x="134" y="66" width="16" height="42" fill="#0b3d9e" opacity=".82"/>
-<rect x="168" y="66" width="16" height="42" fill="#0b3d9e" opacity=".82"/>
-<rect x="40" y="112" width="160" height="14" rx="7" fill="#0b3d9e"/>`);
-  }
-  if (code === 'vnpay') {
-    return S(`${F('#0b3d9e')}
-<rect x="30" y="40" width="92" height="72" rx="12" fill="#0b3d9e"/>
-<path d="M54 40 L110 112 H78 L26 40 Z" fill="#f59e0b"/>
-<g><rect x="140" y="52" width="72" height="14" rx="7" fill="#0b3d9e"/>
-<rect x="140" y="78" width="72" height="14" rx="7" fill="#93b4e2"/>
-<rect x="140" y="104" width="46" height="14" rx="7" fill="#f59e0b"/></g>`);
-  }
-  if (code === 'momo') {
-    return S(`${F('#d0021b')}
-<path d="M120 26 c-46 0-76 28-76 60 0 40 38 62 76 62 38 0 76-22 76-62 0-32-30-60-76-60 z" fill="#d0021b" opacity=".12"/>
-${T('M', 106, 84, '#d0021b')}`);
-  }
-  if (code === 'zalopay') {
-    return S(`${F('#0068ff')}
-<rect x="26" y="40" width="104" height="70" rx="18" fill="#0068ff"/>
-<path d="M48 100 L38 132 L74 108 Z" fill="#0068ff"/>
-${T('Z', 104, 76, '#ffffff')}
-<g><rect x="146" y="56" width="66" height="16" rx="8" fill="#0068ff"/>
-<rect x="146" y="84" width="66" height="16" rx="8" fill="#0068ff" opacity=".55"/>
-<rect x="146" y="112" width="40" height="16" rx="8" fill="#0068ff" opacity=".3"/></g>`);
-  }
-  // Thẻ + mặc định
-  return S(`${F('#0b3d9e')}
-<rect x="24" y="42" width="118" height="72" rx="12" fill="#0b3d9e"/>
-<rect x="24" y="58" width="118" height="16" fill="#f59e0b"/>
-<rect x="38" y="88" width="44" height="9" rx="4" fill="#ffffff" opacity=".9"/>
-<g><rect x="156" y="56" width="60" height="18" rx="9" fill="#0b3d9e"/>
-<rect x="156" y="86" width="60" height="18" rx="9" fill="#0b3d9e" opacity=".6"/>
-<rect x="156" y="116" width="36" height="18" rx="9" fill="#f59e0b"/></g>`);
-}
-
 // Ảnh đại diện cửa hàng — mặt bằng + biển hiệu, dùng cho trang Giới thiệu
 function storeArt({ label = 'UniMate', bg1 = '#0b3d9e', bg2 = '#2f7fd0', deco = '#f59e0b' }) {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="800" height="400" viewBox="0 0 800 400">
@@ -143,22 +84,18 @@ function storeArt({ label = 'UniMate', bg1 = '#0b3d9e', bg2 = '#2f7fd0', deco = 
 <circle cx="672" cy="76" r="96" fill="#ffffff" opacity=".13"/>
 <circle cx="128" cy="330" r="120" fill="${deco}" opacity=".16"/>
 <rect x="0" y="286" width="800" height="114" fill="#0a2540" opacity=".22"/>
-<!-- mặt bằng -->
 <rect x="176" y="150" width="448" height="150" rx="10" fill="#ffffff"/>
 <rect x="160" y="132" width="480" height="30" rx="12" fill="${deco}"/>
 <rect x="160" y="132" width="480" height="30" rx="12" fill="#0a2540" opacity=".18"/>
-<!-- cửa kính -->
 <g><rect x="200" y="196" width="112" height="104" rx="7" fill="#dbeafe" stroke="${bg1}" stroke-width="4"/>
 <rect x="200" y="196" width="112" height="34" rx="7" fill="${bg1}" opacity=".22"/>
 <rect x="488" y="196" width="112" height="104" rx="7" fill="#dbeafe" stroke="${bg1}" stroke-width="4"/>
 <rect x="488" y="196" width="112" height="34" rx="7" fill="${bg1}" opacity=".22"/></g>
-<!-- cửa ra vào -->
 <rect x="340" y="196" width="120" height="104" rx="7" fill="#e8f1fc" stroke="${bg1}" stroke-width="4"/>
 <rect x="396" y="240" width="8" height="22" rx="4" fill="${bg1}"/>
-<!-- biển hiệu -->
 <rect x="272" y="82" width="256" height="52" rx="12" fill="#ffffff" stroke="${bg1}" stroke-width="5"/>
 <text x="400" y="119" font-family="Segoe UI,Arial,sans-serif" font-size="32" font-weight="800" fill="${bg1}" text-anchor="middle">${esc(label)}</text>
 </svg>`;
 }
 
-module.exports = { productArt, bannerArt, categoryArt, paymentLogo, storeArt, esc };
+module.exports = { productArt, bannerArt, categoryArt, storeArt, esc };
