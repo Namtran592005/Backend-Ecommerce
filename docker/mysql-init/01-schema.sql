@@ -1196,7 +1196,6 @@ CREATE TABLE banners (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   title VARCHAR(255) NOT NULL,
   image_media_id BIGINT UNSIGNED NULL,
-  mobile_image_media_id BIGINT UNSIGNED NULL,
   link_url VARCHAR(1000) NULL,
   alt_text VARCHAR(500) NULL,
   sort_order INT NOT NULL DEFAULT 0,
@@ -1209,7 +1208,6 @@ CREATE TABLE banners (
   PRIMARY KEY (id),
   KEY idx_banners_status_time (status, starts_at, ends_at),
   CONSTRAINT fk_banners_image FOREIGN KEY (image_media_id) REFERENCES media_files(id) ON DELETE SET NULL,
-  CONSTRAINT fk_banners_mobile_image FOREIGN KEY (mobile_image_media_id) REFERENCES media_files(id) ON DELETE SET NULL,
   CONSTRAINT fk_banners_creator FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 

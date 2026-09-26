@@ -431,13 +431,11 @@ async function createOrder({ num, userId, status, payStatus, payCode, items, cou
   ];
   for (const b of BANNERS) {
     let mid = null;
-    let midMobile = null;
     if (storageOk) {
       mid = await putArt(`demo/${b.key}.svg`, bannerArt({ bg1: b.bg1, bg2: b.bg2, kicker: b.kicker, title: b.title, sub: b.sub, cta: b.cta, deco: b.deco }));
-      midMobile = await putArt(`demo/${b.key}-m.svg`, bannerArt({ bg1: b.bg1, bg2: b.bg2, kicker: b.kicker, title: b.title, sub: b.sub, cta: b.cta, deco: b.deco, mobile: true }));
     }
-    await q("INSERT INTO banners (title,image_media_id,mobile_image_media_id,link_url,alt_text,sort_order,status) VALUES (?,?,?,?,?,?,'active')",
-      [b.title, mid, midMobile, b.link, b.title, b.sort]);
+    await q("INSERT INTO banners (title,image_media_id,link_url,alt_text,sort_order,status) VALUES (?,?,?,?,?,'active')",
+      [b.title, mid, b.link, b.title, b.sort]);
   }
 
   const [cp] = await q("INSERT INTO campaigns (name,description,status,created_by) VALUES ('Khai trương UniMate','Giảm giá toàn bộ 20% trong 2 tuần đầu','active',?)", [adminId]);

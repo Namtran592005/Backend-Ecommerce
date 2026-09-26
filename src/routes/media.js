@@ -130,7 +130,7 @@ router.delete('/:id', authRequired, requirePerm('products.write'), async (req, r
       pool.query('SELECT id FROM product_images WHERE media_id=? LIMIT 1', [m.id]),
       pool.query('SELECT id FROM brands WHERE logo_media_id=? LIMIT 1', [m.id]),
       pool.query('SELECT id FROM categories WHERE image_media_id=? LIMIT 1', [m.id]),
-      pool.query('SELECT id FROM banners WHERE image_media_id=? OR mobile_image_media_id=? LIMIT 1', [m.id, m.id]),
+      pool.query('SELECT id FROM banners WHERE image_media_id=? LIMIT 1', [m.id]),
       pool.query('SELECT id FROM review_images WHERE media_id=? LIMIT 1', [m.id]),
       pool.query('SELECT user_id FROM user_profiles WHERE avatar_url=? LIMIT 1', [storage.publicUrl(m.object_key)]),
     ]);

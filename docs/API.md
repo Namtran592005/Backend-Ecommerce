@@ -194,7 +194,7 @@ Luồng đơn: `pending → confirmed/cancelled → processing → packed → sh
 - Campaigns: `GET` (public, active) · `GET /campaigns?all=1` (admin, kèm `product_count`) ·
   `POST { name, product_ids[]? }` · `PUT /campaigns/:id` (thay cả bộ sản phẩm nếu gửi `product_ids[]`) ·
   `DELETE /campaigns/:id` (`promotions.write`).
-- Banners: `GET` (public) — chỉ banner `active` **có ảnh**, sắp theo `sort_order, id`, kèm `image_key` để dựng URL ·
+- Banners: `GET` (public) — chỉ banner `active` **có media**, sắp theo `sort_order, id`, kèm `image_key` để dựng URL và `mime_type` để client biết ảnh hay video (media dùng chung mọi màn hình, không có bản mobile riêng) ·
   `GET /banners?all=1` · `GET /banners/all` (admin) ·
   `POST { title, image_media_id?, link_url?, alt_text?, sort_order?, status?, ... }` · `PUT /banners/:id` ·
   `DELETE /banners/:id` · `POST /banners/reorder { ids: [id theo thứ tự mong muốn] }` (`promotions.write`).

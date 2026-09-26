@@ -97,28 +97,27 @@ router.delete('/campaigns/:id', authRequired, requirePerm('promotions.write'), a
 });
 router.get('/banners', async (req, res) => {
   if (req.query.all === '1') {
-    const [all] = await pool.query(`SELECT b.*, m.object_key image_key FROM banners b
+    const [all] = await pool.query(`SELECT b.*, m.object_key image_key, m.mime_type FROM banners b
       LEFT JOIN media_files m ON m.id=b.image_media_id ORDER BY b.sort_order, b.id`);
     return res.json(all);
   }
-  const [rows] = await pool.query(`SELECT b.*, m.object_key image_key FROM banners b
+  const [rows] = await pool.query(`SELECT b.*, m.object_key image_key, m.mime_type FROM banners b
     JOIN media_files m ON m.id=b.image_media_id
     WHERE b.status='active' ORDER BY b.sort_order, b.id LIMIT 50`);
   res.json(rows);
 });
 router.get('/banners/all', authRequired, requirePerm('promotions.read'), async (req, res) => {
-  const [rows] = await pool.query(`SELECT b.*, m.object_key image_key, mm.object_key mobile_image_key FROM banners b
+  const [rows] = await pool.query(`SELECT b.*, m.object_key image_key, m.mime_type FROM banners b
     LEFT JOIN media_files m ON m.id=b.image_media_id
-    LEFT JOIN media_files mm ON mm.id=b.mobile_image_media_id
     ORDER BY b.sort_order, b.id`);
   res.json(rows);
 });
 router.post('/banners', authRequired, requirePerm('promotions.write'), async (req, res) => {
-  const { title, image_media_id, mobile_image_media_id, link_url, alt_text, sort_order, status, starts_at, ends_at } = req.body;
+  const { title, image_media_id, link_url, alt_text, sort_order, status, starts_at, ends_at } = req.body;
   if (!title) return res.status(400).json({ error: 'Thieu title' });
-  const [r] = await pool.query(`INSERT INTO banners (title,image_media_id,mobile_image_media_id,link_url,alt_text,sort_order,status,starts_at,ends_at,created_by)
-    VALUES (?,?,?,?,?,?,?,?,?,?)`,
-    [title, image_media_id || null, mobile_image_media_id || null, link_url || null, alt_text || null, sort_order || 0, status || 'draft', starts_at || null, ends_at || null, req.user.id]);
+  const [r] = await pool.query(`INSERT INTO banners (title,image_media_id,link_url,alt_text,sort_order,status,starts_at,ends_at,created_by)
+    VALUES (?,?,?,?,?,?,?,?,?)`,
+    [title, image_media_id || null, link_url || null, alt_text || null, sort_order || 0, status || 'draft', starts_at || null, ends_at || null, req.user.id]);
   const [[row]] = await pool.query('SELECT * FROM banners WHERE id=?', [r.insertId]);
   res.status(201).json(row);
 });
@@ -126,8 +125,8 @@ router.put('/banners/:id', authRequired, requirePerm('promotions.write'), async 
   const [[b]] = await pool.query('SELECT * FROM banners WHERE id=?', [req.params.id]);
   if (!b) return res.status(404).json({ error: 'Khong tim thay' });
   const f = { ...b, ...req.body };
-  await pool.query('UPDATE banners SET title=?,image_media_id=?,mobile_image_media_id=?,link_url=?,alt_text=?,sort_order=?,status=?,starts_at=?,ends_at=? WHERE id=?',
-    [f.title, f.image_media_id, f.mobile_image_media_id, f.link_url, f.alt_text, f.sort_order, f.status, f.starts_at, f.ends_at, b.id]);
+  await pool.query('UPDATE banners SET title=?,image_media_id=?,link_url=?,alt_text=?,sort_order=?,status=?,starts_at=?,ends_at=? WHERE id=?',
+    [f.title, f.image_media_id, f.link_url, f.alt_text, f.sort_order, f.status, f.starts_at, f.ends_at, b.id]);
   const [[row]] = await pool.query('SELECT * FROM banners WHERE id=?', [b.id]);
   res.json(row);
 });
