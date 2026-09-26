@@ -324,7 +324,7 @@ async function createOrder({ num, userId, status, payStatus, payCode, items, cou
            ('Mua 2 giam them','MUA2','Giam them cho don tu 2 san pham','percentage',5,50000,'2020-01-01','2030-01-01',5,TRUE,'active')`);
 
   console.log('== Nguoi dung ==');
-  const adminId = await createUser({ email: 'admin@example.com', phone: '0900000001', pw: 'Admin123!', role: 'super_admin', first: 'Quan', last: 'Tri' });
+  const adminId = await createUser({ email: 'admin@example.com', phone: '0900000001', pw: process.env.ADMIN_PASSWORD || 'Admin123!', role: 'super_admin', first: 'Quan', last: 'Tri' });
   await createUser({ email: 'manager@example.com', phone: '0900000002', pw: 'Staff123!', role: 'store_manager', first: 'Cua hang', last: 'Truong' });
   await createUser({ email: 'kho@example.com', phone: '0900000003', pw: 'Staff123!', role: 'warehouse_staff', first: 'Thu', last: 'Kho' });
   await createUser({ email: 'cskh@example.com', phone: '0900000004', pw: 'Staff123!', role: 'customer_support', first: 'Cham soc', last: 'Khach' });

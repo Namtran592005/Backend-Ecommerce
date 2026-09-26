@@ -1,6 +1,9 @@
 // Test end-to-end UniMate API (Node 18+ co fetch san)
 // Mặc định test local (:3000); test stack Docker: API_BASE=http://127.0.0.1/api node test-api.js
+// Tài khoản quản trị: đặt ADMIN_EMAIL/ADMIN_PASSWORD nếu khác giá trị mặc định.
 const BASE = process.env.API_BASE || 'http://localhost:3000/api';
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@example.com';
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'UniMateDev2026!';
 let pass = 0, fail = 0;
 async function t(name, fn) {
   try { const r = await fn(); pass++; console.log(`✅ ${name}`); return r; }
@@ -22,7 +25,7 @@ async function api(method, path, body, token) {
   const health = await t('health', () => api('GET', '/health'));
   assert(health.ok, 'health fail');
 
-  const adminLogin = await t('admin login', () => api('POST', '/auth/login', { identifier: 'admin@example.com', password: 'Admin123!' }));
+  const adminLogin = await t('admin login', () => api('POST', '/auth/login', { identifier: ADMIN_EMAIL, password: ADMIN_PASSWORD }));
   const ADMIN = adminLogin?.token; assert(ADMIN, 'no admin token');
 
   const custEmail = `test${Date.now()}@gmail.com`;

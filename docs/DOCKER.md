@@ -1,7 +1,8 @@
 # Triển khai Docker — UniMate (1 máy chủ là chạy)
 
-Stack 6 container: **MySQL 9.7 LTS** (tự tạo schema + seed) → **backend** (Node 22,
-tự seed admin, cổng 3000) → **RustFS** (kho ảnh/video/tệp S3, cổng 9000) →
+Stack 6 container: **MySQL 9.7 LTS** (tự tạo schema, không tạo dữ liệu mẫu) →
+**backend** (Node 22, tự tạo tài khoản quản trị lần đầu, cổng 3000) →
+**RustFS** (kho ảnh/video/tệp S3, cổng 9000) →
 **admin** (trang quản trị, nginx, cổng 8080) → **client** (web bán hàng, nginx,
 cổng 8081) → **Caddy** (chỉ chạy với `--profile edge`).
 
@@ -84,13 +85,31 @@ CLIENT_FILES_BASE=https://api.example.com/files/unimate
 ```bash
 docker compose --env-file .env.docker up -d --build
 docker compose --env-file .env.docker ps
-docker compose --env-file .env.docker logs -f backend   # xem seed admin + server
-curl https://api.example.com/api/health   # {"ok":true,"db":"up",...}
+docker compose --env-file .env.docker logs -f backend
+curl https://api.example.com/api/health   # {"ok":true,"db":up",...}
 ```
-Login admin `POST .../api/auth/login`
-`{ "identifier": "admin@example.com", "password": "Admin123!" }`
-→ **đổi mật khẩu ngay** (`PUT /api/auth/password`).
-Mở trang quản trị: `https://admin.example.com` (đăng nhập tài khoản nhân sự).
+
+Database trống chỉ được nạp phần xương sống (vai trò + quyền, 1 phương thức thanh
+toán, 1 đơn vị vận chuyển, cấu hình hệ thống) cùng **một tài khoản quản trị**.
+Không có sản phẩm, đơn hàng hay ảnh mẫu nào — thêm bằng tay qua trang quản trị.
+
+Lấy thông tin đăng nhập quản trị:
+
+```bash
+docker compose --env-file .env.docker logs backend | grep -A4 "tai khoan quan tri"
+```
+
+Đặt `ADMIN_EMAIL` / `ADMIN_PASSWORD` (tối thiểu 12 ký tự) trong `.env.docker` trước
+khi chạy để tự quyết tài khoản. Bỏ trống `ADMIN_PASSWORD` thì hệ thống sinh mật khẩu
+ngẫu nhiên và in ra log đúng một lần. Lần chạy sau script bỏ qua, nên đổi mật khẩu
+trong trang quản trị sẽ được giữ nguyên.
+
+Mở trang quản trị: `https://admin.example.com`.
+
+Muốn dữ liệu mẫu để demo hoặc thử nghiệm (xoá sạch dữ liệu hiện có):
+```bash
+docker exec unimate-backend-1 npm run db:seed-demo
+```
 Mở web bán hàng: `https://www.example.com`.
 
 ## 5. Vận hành

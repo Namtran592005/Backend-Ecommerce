@@ -52,6 +52,11 @@ services:
       JWT_EXPIRES_IN: 15m
       JWT_REFRESH_EXPIRES_IN: 30d
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS}
+      # Tài khoản quản trị khởi tạo, chỉ dùng lần đầu khi DB còn trống.
+      # Bỏ trống ADMIN_PASSWORD -> sinh mật khẩu ngẫu nhiên in ra log.
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@example.com}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      ADMIN_NAME: ${ADMIN_NAME:-Admin}
       # Sau Caddy HTTPS thật thì =1; test HTTP thuần thì =0 trong .env.docker
       FORCE_HTTPS: ${FORCE_HTTPS:-1}
       TRUST_PROXY: 1

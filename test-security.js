@@ -34,7 +34,7 @@ function assert(c, m) { if (!c) throw new Error(m || 'assert fail'); }
   await t('login cấp access ngắn + refresh cookie httpOnly', async () => {
     const r = await fetch(BASE + '/api/auth/login', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ identifier: 'admin@example.com', password: 'Admin123!' }),
+      body: JSON.stringify({ identifier: process.env.ADMIN_EMAIL || 'admin@example.com', password: process.env.ADMIN_PASSWORD || 'UniMateDev2026!' }),
     });
     assert(r.ok, 'login fail ' + r.status);
     const setCookie = r.headers.get('set-cookie') || '';

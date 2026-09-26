@@ -13,7 +13,7 @@ gọi vào đây qua REST API.
 ## Chạy
 
 ```powershell
-Copy-Item .env.docker.example .env.docker   # sửa mật khẩu + domain
+Copy-Item .env.docker.example .env.docker   # sửa mật khẩu + tài khoản quản trị
 docker compose --env-file .env.docker up -d --build
 ```
 
@@ -30,7 +30,8 @@ curl http://127.0.0.1:3000/api/health     # {"ok":true,"db":"up"}
 | client | 8081 | Web bán hàng |
 | objectstore | 9000 / 9001 | Ảnh, video, tệp · console |
 
-Nạp dữ liệu mẫu (12 user, 22 sản phẩm, 13 đơn, 71 ảnh SVG tự sinh):
+Database trống sẽ chỉ có phần xương sống và **một tài khoản quản trị** — xem
+[Dữ liệu khởi tạo](#dữ-liệu-khởi-tạo). Muốn nạp dữ liệu mẫu để xem thử:
 
 ```powershell
 docker exec unimate-backend-1 npm run db:seed-demo
@@ -47,20 +48,49 @@ node seed-admin.js         # tạo tài khoản quản trị
 npm start                  # http://localhost:3000
 ```
 
+## Dữ liệu khởi tạo
+
+Một lần `up` trên database trống chỉ tạo **phần xương sống**, đủ để đăng nhập và
+bắt đầu dùng:
+
+| Có sẵn | Không có — phải tự thêm |
+|---|---|
+| Vai trò `super_admin` + danh mục quyền | Sản phẩm, danh mục, thương hiệu |
+| 1 phương thức thanh toán, 1 đơn vị vận chuyển | Đơn hàng, khách hàng, banner |
+| Cấu hình hệ thống cơ bản | Ảnh, đánh giá, khuyến mãi |
+
+Tài khoản quản trị được tạo tự động **đúng một lần**. Đặt `ADMIN_EMAIL` và
+`ADMIN_PASSWORD` trong `.env.docker` trước khi chạy; bỏ trống `ADMIN_PASSWORD` thì
+mật khẩu ngẫu nhiên sẽ in ra log:
+
+```powershell
+docker compose --env-file .env.docker logs backend
+```
+
+Sau lần đầu, script bỏ qua hoàn toàn — nên đổi mật khẩu trong trang quản trị sẽ
+được giữ nguyên qua các lần `restart` và `up` sau.
+
+Muốn dùng dữ liệu mẫu để xem thử (12 user, 22 sản phẩm, 13 đơn, 71 ảnh):
+
+```powershell
+docker exec unimate-backend-1 npm run db:seed-demo
+```
+
+Lệnh này **xoá sạch dữ liệu cũ** rồi nạp lại, nên chỉ chạy trên môi trường thử nghiệm.
+
 ## Tài khoản demo
 
-Có sẵn sau khi chạy `npm run db:seed-demo`.
+Chỉ tồn tại sau khi chạy `npm run db:seed-demo`. Tài khoản quản trị nhận mật khẩu
+theo `ADMIN_PASSWORD` (mặc định `Admin123!`).
 
 | Vai trò | Tài khoản | Mật khẩu |
 |---|---|---|
-| Quản trị tối cao | `admin@example.com` | `Admin123!` |
+| Quản trị tối cao | `admin@example.com` | `ADMIN_PASSWORD` |
 | Quản lý cửa hàng | `manager@example.com` | `Staff123!` |
 | Thủ kho | `kho@example.com` | `Staff123!` |
 | Chăm sóc khách hàng | `cskh@example.com` | `Staff123!` |
 | Marketing | `mkt@example.com` | `Staff123!` |
 | Khách hàng | `an@`, `binh@`, `chi@`, `dung@`, `hieu@`, `lan@`, `minh@example.com` | `Khach123!` |
-
-Đổi mật khẩu admin ngay sau khi deploy thật.
 
 ## Lệnh npm
 
@@ -69,7 +99,7 @@ Có sẵn sau khi chạy `npm run db:seed-demo`.
 | `npm start` | Chạy server |
 | `npm test` | 28 test end-to-end (checkout, trừ kho, thanh toán, media) |
 | `npm run test:security` | 7 test bảo mật (CORS, xoay token, thu hồi phiên) |
-| `npm run db:seed-demo` | Nạp lại dữ liệu mẫu |
+| `npm run db:seed-demo` | Nạp lại dữ liệu mẫu — **xoá sạch dữ liệu cũ**, chỉ dùng thử nghiệm |
 | `npm run db:init` | Sinh lại `docker/mysql-init/01-schema.sql` từ `db/schema.sql` |
 | `npm run db:import` | Nạp schema vào MySQL local |
 | `npm run seed` | Tạo 1 tài khoản admin |
