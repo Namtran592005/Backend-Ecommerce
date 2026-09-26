@@ -77,7 +77,7 @@ router.delete('/categories/:id', authRequired, requirePerm('categories.write'), 
 // ---------- PRODUCTS ----------
 router.get('/products', authOptional, async (req, res) => {
   const { page, limit, offset } = paged(req);
-  const { search = '', category_id, brand_id, status } = req.query;
+  const { search = '', category_id, category_ids, brand_id, status } = req.query;
   const where = []; const p = [];
   const isAdmin = req.user && (req.user.roles.includes('super_admin') || req.user.permissions.includes('products.write'));
   if (search) { where.push('(pr.name LIKE ? OR pr.sku LIKE ?)'); p.push(`%${search}%`, `%${search}%`); }
@@ -85,6 +85,13 @@ router.get('/products', authOptional, async (req, res) => {
   if (status && isAdmin) { where.push('pr.status=?'); p.push(status); }
   else if (!isAdmin) { where.push("pr.status='active'"); }
   if (category_id) { where.push('EXISTS (SELECT 1 FROM product_categories pc WHERE pc.product_id=pr.id AND pc.category_id=?)'); p.push(category_id); }
+  if (category_ids) {
+    const ids = String(category_ids).split(',').map((x) => Number(x.trim())).filter((x) => Number.isInteger(x) && x > 0);
+    if (ids.length) {
+      where.push(`EXISTS (SELECT 1 FROM product_categories pc WHERE pc.product_id=pr.id AND pc.category_id IN (${ids.map(() => '?').join(',')}))`);
+      p.push(...ids);
+    }
+  }
   const w = where.length ? 'WHERE ' + where.join(' AND ') : '';
   const [[{ total }]] = await pool.query(`SELECT COUNT(*) total FROM products pr ${w}`, p);
   const [rows] = await pool.query(`SELECT pr.*, b.name brand_name,
