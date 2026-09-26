@@ -76,25 +76,29 @@ ${label ? `<text x="240" y="440" font-family="Segoe UI,Arial,sans-serif" font-si
 </svg>`;
 }
 
-// Ảnh đại diện cửa hàng — mặt bằng + biển hiệu, dùng cho trang Giới thiệu
+// Ảnh đại diện cửa hàng — khung vuông 600x600 để vừa ô logo vuông ở trang Giới thiệu
 function storeArt({ label = 'UniMate', bg1 = '#0b3d9e', bg2 = '#2f7fd0', deco = '#f59e0b' }) {
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="800" height="400" viewBox="0 0 800 400">
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="600" viewBox="0 0 600 600">
 <defs><linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${bg1}"/><stop offset="1" stop-color="${bg2}"/></linearGradient></defs>
-<rect width="800" height="400" fill="url(#sky)"/>
-<circle cx="672" cy="76" r="96" fill="#ffffff" opacity=".13"/>
-<circle cx="128" cy="330" r="120" fill="${deco}" opacity=".16"/>
-<rect x="0" y="286" width="800" height="114" fill="#0a2540" opacity=".22"/>
-<rect x="176" y="150" width="448" height="150" rx="10" fill="#ffffff"/>
-<rect x="160" y="132" width="480" height="30" rx="12" fill="${deco}"/>
-<rect x="160" y="132" width="480" height="30" rx="12" fill="#0a2540" opacity=".18"/>
-<g><rect x="200" y="196" width="112" height="104" rx="7" fill="#dbeafe" stroke="${bg1}" stroke-width="4"/>
-<rect x="200" y="196" width="112" height="34" rx="7" fill="${bg1}" opacity=".22"/>
-<rect x="488" y="196" width="112" height="104" rx="7" fill="#dbeafe" stroke="${bg1}" stroke-width="4"/>
-<rect x="488" y="196" width="112" height="34" rx="7" fill="${bg1}" opacity=".22"/></g>
-<rect x="340" y="196" width="120" height="104" rx="7" fill="#e8f1fc" stroke="${bg1}" stroke-width="4"/>
-<rect x="396" y="240" width="8" height="22" rx="4" fill="${bg1}"/>
-<rect x="272" y="82" width="256" height="52" rx="12" fill="#ffffff" stroke="${bg1}" stroke-width="5"/>
-<text x="400" y="119" font-family="Segoe UI,Arial,sans-serif" font-size="32" font-weight="800" fill="${bg1}" text-anchor="middle">${esc(label)}</text>
+<rect width="600" height="600" fill="url(#sky)"/>
+<circle cx="492" cy="112" r="128" fill="#ffffff" opacity=".12"/>
+<circle cx="104" cy="512" r="150" fill="${deco}" opacity=".15"/>
+<!-- mặt bằng -->
+<rect x="126" y="300" width="348" height="196" rx="12" fill="#ffffff"/>
+<rect x="110" y="272" width="380" height="42" rx="14" fill="${deco}"/>
+<rect x="110" y="272" width="380" height="42" rx="14" fill="#0a2540" opacity=".18"/>
+<g><rect x="150" y="356" width="86" height="140" rx="8" fill="#dbeafe" stroke="${bg1}" stroke-width="5"/>
+<rect x="150" y="356" width="86" height="44" rx="8" fill="${bg1}" opacity=".22"/>
+<rect x="364" y="356" width="86" height="140" rx="8" fill="#dbeafe" stroke="${bg1}" stroke-width="5"/>
+<rect x="364" y="356" width="86" height="44" rx="8" fill="${bg1}" opacity=".22"/></g>
+<!-- cửa ra vào -->
+<rect x="256" y="356" width="88" height="140" rx="8" fill="#e8f1fc" stroke="${bg1}" stroke-width="5"/>
+<rect x="298" y="418" width="8" height="26" rx="4" fill="${bg1}"/>
+<!-- lối đi -->
+<rect x="96" y="496" width="408" height="16" rx="8" fill="#0a2540" opacity=".2"/>
+<!-- biển hiệu -->
+<rect x="176" y="150" width="248" height="76" rx="16" fill="#ffffff" stroke="${bg1}" stroke-width="6"/>
+<text x="300" y="202" font-family="Segoe UI,Arial,sans-serif" font-size="42" font-weight="800" fill="${bg1}" text-anchor="middle">${esc(label)}</text>
 </svg>`;
 }
 
