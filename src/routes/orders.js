@@ -151,6 +151,73 @@ router.post('/checkout', authOptional, async (req, res) => {
   } finally { conn.release(); }
 });
 
+// GET /api/orders/lookup — tra cứu đơn hàng cho khách CHƯA có tài khoản.
+// Công khai, nhưng bắt buộc đủ 3 yếu tố: mã đơn + số điện thoại + ngày đặt.
+// Chỉ trả về thông tin tối thiểu, không lộ dữ liệu người dùng khác.
+const lookupHits = new Map();
+router.get('/lookup', async (req, res) => {
+  const orderNumberIn = String(req.query.order_number || '').trim();
+  const phoneIn = String(req.query.phone || '').replace(/[^\d+]/g, '');
+  const dateIn = String(req.query.date || '').trim();
+  if (!orderNumberIn || !phoneIn || !dateIn)
+    return res.status(400).json({ error: 'Vui long nhap ma don, so dien thoai va ngay dat hang' });
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateIn))
+    return res.status(400).json({ error: 'Ngay dat hang sai dinh dang' });
+  if (orderNumberIn.length > 50 || phoneIn.length > 20)
+    return res.status(400).json({ error: 'Thong tin tra cuu khong hop le' });
+
+  // Chống dò số đơn: mỗi IP tối đa 20 lần / 10 phút
+  const ip = req.ip || 'unknown';
+  const now = Date.now();
+  const seen = (lookupHits.get(ip) || []).filter((t) => now - t < 600000);
+  if (seen.length >= 20) return res.status(429).json({ error: 'Qua nhieu lan tra cuu. Vui long thu lai sau' });
+  seen.push(now);
+  lookupHits.set(ip, seen);
+
+  try {
+    const [rows] = await pool.query(
+      `SELECT o.id, o.order_number, o.status, o.payment_status, o.fulfillment_status,
+              o.subtotal, o.shipping_fee, o.total_amount, o.currency, o.placed_at, o.created_at,
+              o.coupon_code,
+              oa.recipient_name, oa.province_name, oa.district_name, oa.ward_name, oa.address_line
+       FROM orders o
+       JOIN order_addresses oa ON oa.order_id=o.id AND oa.address_type='shipping'
+       WHERE o.order_number=? AND oa.phone=? AND DATE(COALESCE(o.placed_at,o.created_at))=?
+       LIMIT 1`,
+      [orderNumberIn, phoneIn, dateIn]);
+    const o = rows[0];
+    if (!o) return res.status(404).json({ error: 'Khong tim thay don hang. Kiem tra lai ma don, so dien thoai va ngay dat' });
+    const [items] = await pool.query(
+      `SELECT oi.quantity, oi.unit_price, oi.total_amount, oi.product_name_snapshot, p.slug product_slug
+       FROM order_items oi JOIN products p ON p.id=oi.product_id WHERE oi.order_id=?`, [o.id]);
+    const [track] = await pool.query(
+      `SELECT s.status, s.tracking_number, ev.status ev_status, ev.description, ev.location, ev.occurred_at
+       FROM shipments s
+       LEFT JOIN shipment_tracking_events ev ON ev.shipment_id=s.id
+       WHERE s.order_id=? ORDER BY ev.occurred_at DESC LIMIT 1`, [o.id]);
+    res.json({
+      order: {
+        order_number: o.order_number,
+        status: o.status,
+        payment_status: o.payment_status,
+        fulfillment_status: o.fulfillment_status,
+        subtotal: o.subtotal,
+        shipping_fee: o.shipping_fee,
+        total_amount: o.total_amount,
+        currency: o.currency,
+        coupon_code: o.coupon_code,
+        placed_at: o.placed_at || o.created_at,
+        recipient_name: o.recipient_name,
+        address: [o.address_line, o.ward_name, o.district_name, o.province_name].filter(Boolean).join(', '),
+      },
+      items: items.map((i) => ({ product_name: i.product_name_snapshot, product_slug: i.product_slug, quantity: i.quantity, unit_price: i.unit_price, total_amount: i.total_amount })),
+      tracking: track[0] || null,
+    });
+  } catch (e) {
+    res.status(500).json({ error: 'Khong tra cuu duoc. Vui long thu lai sau' });
+  }
+});
+
 // GET /api/orders
 router.get('/', authRequired, async (req, res) => {
   const { page, limit, offset } = paged(req);

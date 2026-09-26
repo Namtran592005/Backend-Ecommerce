@@ -150,6 +150,48 @@ router.post('/banners/reorder', authRequired, requirePerm('promotions.write'), a
 });
 
 // SYSTEM: settings, notifications, logs, reports
+
+// Nội dung các trang tĩnh (gioi thiệu, FAQ, chính sách, cửa hàng) lưu trong
+// system_settings dạng JSON + is_public=1 để web đọc qua /settings/public.
+// Mỗi key có bộ chuẩn hóa riêng để admin gõ tuỳ ý mà không làm hỏng cấu trúc.
+const txt = (v, n) => String(v ?? '').replace(/\r/g, '').trim().slice(0, n);
+const PAGE_SETTINGS = {
+  'page.about': (v) => ({
+    heading: txt(v?.heading, 120) || 'Giới thiệu UniMate',
+    intro: txt(v?.intro, 2000),
+    body: txt(v?.body, 8000),
+  }),
+  'page.faq': (v) => (Array.isArray(v) ? v : [])
+    .filter((x) => x && (x.q || x.a))
+    .slice(0, 60)
+    .map((x) => ({ q: txt(x.q, 300), a: txt(x.a, 4000) }))
+    .filter((x) => x.q && x.a),
+  'page.stores': (v) => (Array.isArray(v) ? v : [])
+    .filter((x) => x && x.name)
+    .slice(0, 30)
+    .map((x) => ({
+      name: txt(x.name, 150),
+      address: txt(x.address, 300),
+      phone: txt(x.phone, 30),
+      hours: txt(x.hours, 120),
+    })),
+  'page.policy.sales': (v) => normPolicy(v, 'Chính sách bán hàng'),
+  'page.policy.shipping': (v) => normPolicy(v, 'Chính sách giao hàng'),
+  'page.policy.returns': (v) => normPolicy(v, 'Chính sách đổi trả'),
+  'page.policy.security': (v) => normPolicy(v, 'Chính sách bảo mật'),
+};
+function normPolicy(v, fallbackHeading) {
+  const o = v && typeof v === 'object' && !Array.isArray(v) ? v : {};
+  return {
+    heading: txt(o.heading, 120) || fallbackHeading,
+    intro: txt(o.intro, 2000),
+    sections: (Array.isArray(o.sections) ? o.sections : []).slice(0, 40).map((s) => ({
+      h: txt(s?.h, 200),
+      p: txt(s?.p, 4000),
+    })).filter((s) => s.h || s.p),
+  };
+}
+
 router.get('/settings/public', async (req, res) => {
   const [rows] = await pool.query('SELECT setting_key, setting_value FROM system_settings WHERE is_public=1');
   res.json(rows);
@@ -166,6 +208,14 @@ router.put('/settings/:key', authRequired, requirePerm('settings.write'), async 
     if (!Array.isArray(value)) return res.status(400).json({ error: 'Menu phai la danh sach' });
     value = value.filter((m) => m && m.label && m.link).slice(0, 12)
       .map((m) => ({ label: String(m.label).slice(0, 60), link: String(m.link).slice(0, 200) }));
+    await pool.query(`INSERT INTO system_settings (setting_key,setting_value,is_public,updated_by) VALUES (?,?,TRUE,?)
+      ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value), is_public=TRUE, updated_by=VALUES(updated_by)`,
+      [key, JSON.stringify(value), req.user.id]);
+    return res.json({ ok: true, value });
+  }
+  // Nội dung trang tĩnh: chuẩn hóa + luôn công khai
+  if (PAGE_SETTINGS[key]) {
+    value = PAGE_SETTINGS[key](value);
     await pool.query(`INSERT INTO system_settings (setting_key,setting_value,is_public,updated_by) VALUES (?,?,TRUE,?)
       ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value), is_public=TRUE, updated_by=VALUES(updated_by)`,
       [key, JSON.stringify(value), req.user.id]);

@@ -28,8 +28,10 @@ router.get('/', authRequired, requirePerm('users.read'), async (req, res) => {
     const [[{ total }]] = await pool.query(`SELECT COUNT(*) total FROM users u ${w}`, p);
     const [rows] = await pool.query(`SELECT u.id, u.email, u.phone, u.status, u.must_change_password,
       u.email_verified_at, u.last_login_at, u.created_at, u.deleted_at,
+      up.avatar_url, up.display_name,
       GROUP_CONCAT(r.code) roles FROM users u
       LEFT JOIN user_roles ur ON ur.user_id=u.id LEFT JOIN roles r ON r.id=ur.role_id
+      LEFT JOIN user_profiles up ON up.user_id=u.id
       ${w} GROUP BY u.id ORDER BY u.id DESC LIMIT ? OFFSET ?`, [...p, limit, offset]);
     res.json({ data: rows, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } });
   } catch (e) { res.status(500).json({ error: e.message }); }
@@ -105,7 +107,7 @@ router.patch('/:id/status', authRequired, requirePerm('users.write'), async (req
 router.put('/:id', authRequired, requirePerm('users.write'), async (req, res) => {
   const [[u]] = await pool.query('SELECT * FROM users WHERE id=?', [req.params.id]);
   if (!u) return res.status(404).json({ error: 'Khong tim thay' });
-  const { email, phone, status, first_name, last_name, display_name, gender, date_of_birth, marketing_opt_in } = req.body || {};
+  const { email, phone, status, first_name, last_name, display_name, gender, date_of_birth, marketing_opt_in, avatar_url } = req.body || {};
   if (email !== undefined && email !== null && email !== '') {
     const [[dup]] = await pool.query('SELECT id FROM users WHERE email=? AND id<>?', [email, u.id]);
     if (dup) return res.status(409).json({ error: 'Email da duoc dung' });
@@ -123,13 +125,14 @@ router.put('/:id', authRequired, requirePerm('users.write'), async (req, res) =>
     await conn.beginTransaction();
     await conn.query('UPDATE users SET email=?,phone=?,status=? WHERE id=?',
       [email === '' ? null : email ?? u.email, phone === '' ? null : phone ?? u.phone, status || u.status, u.id]);
-    if ([first_name, last_name, display_name, gender, date_of_birth, marketing_opt_in].some((v) => v !== undefined)) {
+    if ([first_name, last_name, display_name, gender, date_of_birth, marketing_opt_in, avatar_url].some((v) => v !== undefined)) {
       await conn.query('INSERT IGNORE INTO user_profiles (user_id) VALUES (?)', [u.id]);
       const [[p]] = await conn.query('SELECT * FROM user_profiles WHERE user_id=?', [u.id]);
-      await conn.query(`UPDATE user_profiles SET first_name=?,last_name=?,display_name=?,gender=?,date_of_birth=?,marketing_opt_in=? WHERE user_id=?`,
+      await conn.query(`UPDATE user_profiles SET first_name=?,last_name=?,display_name=?,gender=?,date_of_birth=?,marketing_opt_in=?,avatar_url=? WHERE user_id=?`,
         [first_name ?? p.first_name, last_name ?? p.last_name, display_name ?? p.display_name,
           gender || p.gender, date_of_birth === '' ? null : date_of_birth ?? p.date_of_birth,
-          marketing_opt_in === undefined ? p.marketing_opt_in : !!marketing_opt_in, u.id]);
+          marketing_opt_in === undefined ? p.marketing_opt_in : !!marketing_opt_in,
+          avatar_url === '' ? null : avatar_url ?? p.avatar_url, u.id]);
     }
     await conn.commit();
   } catch (e) { await conn.rollback(); return res.status(400).json({ error: e.message }); } finally { conn.release(); }

@@ -446,6 +446,66 @@ async function createOrder({ num, userId, status, payStatus, payCode, items, cou
       { label: 'Ưu Đãi Đặc Biệt', link: '/khuyen-mai' },
     ])]);
 
+  // Nội dung các trang tĩnh — sửa được trong admin (Hệ thống > Nội dung trang)
+  const PAGE_CONTENT = [
+    ['page.about', {
+      heading: 'Giới thiệu UniMate',
+      intro: 'UniMate là cửa hàng trực tuyến chuyên phân phối thời trang, phụ kiện, đồ gia dụng và thiết bị điện tử chính hãng trên toàn quốc. Chúng tôi chọn từng món đồ bằng tiêu chuẩn chất lượng và giá hợp lý, để mỗi lần bạn mua đều yên tâm dùng lâu.',
+      body: 'Sứ mệnh của chúng tôi là làm cho việc mua sắm trở nên nhanh gọn và đáng tin cậy: giao hàng đúng hẹn, đổi trả dễ dàng, và đội ngũ tư vấn hiểu rõ nhu cầu của bạn.',
+    }, 'Nội dung giới thiệu'],
+    ['page.stores', [
+      { name: 'Cửa hàng UniMate', address: '123 Phường Nguyệt Hoá, Vĩnh Long', phone: '1900 255 579', hours: 'Thứ 2 - Chủ nhật: 8:00 - 21:00' },
+    ], 'Danh sách cửa hàng'],
+    ['page.faq', [
+      { q: 'Tôi có cần tạo tài khoản để mua hàng không?', a: 'Không. Bạn vẫn có thể đặt hàng như khách. Nếu muốn theo dõi đơn và tích điểm, hãy tra cứu đơn hàng bằng số điện thoại, mã đơn và ngày đặt, hoặc đăng ký tài khoản miễn phí.' },
+      { q: 'Thời gian giao hàng mất bao lâu?', a: 'Nội thành giao trong 24 giờ làm việc. Các tỉnh thành khác giao từ 2 đến 5 ngày làm việc. Bạn sẽ nhận được mã vận đơn ngay khi đơn hàng được chuyển sang đơn vị vận chuyển.' },
+      { q: 'Tôi có thể đổi hoặc trả sản phẩm không?', a: 'Có. Bạn được đổi hoặc trả trong vòng 7 ngày kể từ khi nhận hàng, với điều kiện sản phẩm còn nguyên tem mác và bao bì. Phí giao hàng trả về do bạn chi trả trừ trường hợp lỗi từ phía chúng tôi.' },
+      { q: 'Hình thức thanh toán nào được chấp nhận?', a: 'Chúng tôi nhận thanh toán khi giao hàng (COD), chuyển khoản ngân hàng và ví điện tử. Đơn hàng sẽ được xử lý ngay khi hệ thống ghi nhận thanh toán thành công.' },
+      { q: 'Sản phẩm có được bảo hành không?', a: 'Sản phẩm điện tử được bảo hành theo chính sách của nhà sản xuất, thường từ 12 đến 24 tháng. Bạn giữ lại hóa đơn để được hỗ trợ khi cần.' },
+    ], 'Câu hỏi thường gặp'],
+    ['page.policy.sales', {
+      heading: 'Chính sách bán hàng',
+      intro: 'Chính sách này giải thích cách UniMate tiếp nhận và xử lý đơn hàng của bạn.',
+      sections: [
+        { h: 'Đơn hàng và xác nhận', p: 'Sau khi bạn đặt hàng, hệ thống sẽ gửi mã đơn về điện thoại hoặc email. Đơn được xác nhận khi bạn hoàn tất thanh toán, hoặc khi nhân viên gọi kiểm tra lại thông tin giao hàng với đơn thanh toán khi giao.' },
+        { h: 'Giá cả và khuyến mãi', p: 'Giá niêm yết là giá đã bao gồm thuế. Các chương trình khuyến mãi được áp dụng theo thời gian và có thể không dùng cùng với ưu đãi khác, trừ khi trang thông báo có ghi rõ ngoại lệ.' },
+        { h: 'Thay đổi đơn hàng', p: 'Bạn có thể yêu cầu thay đổi hoặc huỷ đơn trước khi đơn được chuyển sang giao. Sau khi giao, vui lòng áp dụng chính sách đổi trả.' },
+      ],
+    }, 'Chính sách bán hàng'],
+    ['page.policy.shipping', {
+      heading: 'Chính sách giao hàng',
+      intro: 'UniMate giao hàng trên toàn quốc với phí và thời gian hiển thị rõ trước khi bạn thanh toán.',
+      sections: [
+        { h: 'Thời gian giao hàng', p: 'Nội thành: 24 giờ làm việc. Tỉnh thành khác: 2 đến 5 ngày làm việc. Thời gian giao hỏa tốc trong ngày tùy tình trạng thực tế và địa chỉ nhận.' },
+        { h: 'Phí vận chuyển', p: 'Phí giao hàng được tính theo đơn vị vận chuyển và trọng lượng. Đơn hàng từ 499.000₫ được miễn phí vận chuyển.' },
+        { h: 'Kiểm tra khi nhận hàng', p: 'Bạn nên kiểm tra số lượng và tình trạng sản phẩm ngay khi nhận. Nếu bao bì bị vỡ hoặc sai hàng, vui lòng từ chối và gọi hotline để được hỗ trợ.' },
+      ],
+    }, 'Chính sách giao hàng'],
+    ['page.policy.returns', {
+      heading: 'Chính sách đổi trả',
+      intro: 'Bạn có 7 ngày để đổi hoặc trả sản phẩm kể từ ngày nhận hàng.',
+      sections: [
+        { h: 'Điều kiện đổi trả', p: 'Sản phẩm còn nguyên tem mác, bao bì, phụ kiện kèm theo và chưa qua sử dụng. Sản phẩm vệ sinh cá nhân, đồ ăn uống không áp dụng đổi trả.' },
+        { h: 'Cách thức đổi trả', p: 'Vui lòng liên hệ hotline hoặc mở mục Đơn hàng trong tài khoản của bạn để gửi yêu cầu. Chúng tôi sẽ hướng dẫn địa chỉ nhận lại hàng.' },
+        { h: 'Hoàn tiền', p: 'Tiền được hoàn lại trong 3 đến 7 ngày làm việc kể từ khi nhận được hàng trả lại, qua đúng phương thức thanh toán ban đầu.' },
+      ],
+    }, 'Chính sách đổi trả'],
+    ['page.policy.security', {
+      heading: 'Chính sách bảo mật',
+      intro: 'Chúng tôi tôn trọng dữ liệu của bạn và áp dụng các biện pháp bảo vệ tiêu chuẩn.',
+      sections: [
+        { h: 'Thông tin bạn cung cấp', p: 'Chúng tôi chỉ dùng thông tin để xử lý đơn hàng, giao hàng, hỗ trợ sau bán hàng và gửi thông báo bạn đăng ký nhận.' },
+        { h: 'Bảo vệ tài khoản', p: 'Mật khẩu được lưu dưới dạng mã hoá một chiều, không ai trong hệ thống đọc được mật khẩu của bạn. Hãy đặt mật khẩu khác cho các tài khoản khác.' },
+        { h: 'Quyền riêng tư', p: 'Bạn có quyền xem, sửa hoặc yêu cầu xoá thông tin cá nhân bằng cách liên hệ hotline 1900 255 579.' },
+      ],
+    }, 'Chính sách bảo mật'],
+  ];
+  for (const [key, val, desc] of PAGE_CONTENT) {
+    await q(`INSERT INTO system_settings (setting_key,setting_value,description,is_public) VALUES (?,?,?,TRUE)
+      ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value), description=VALUES(description), is_public=TRUE`,
+      [key, JSON.stringify(val), desc]);
+  }
+
   const [[u]] = await q('SELECT COUNT(*) n FROM users');
   const [[o]] = await q('SELECT COUNT(*) n FROM orders');
   const [[p]] = await q('SELECT COUNT(*) n FROM products');
