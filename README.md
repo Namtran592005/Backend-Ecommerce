@@ -59,16 +59,18 @@ bắt đầu dùng:
 | 1 phương thức thanh toán, 1 đơn vị vận chuyển | Đơn hàng, khách hàng, banner |
 | Cấu hình hệ thống cơ bản | Ảnh, đánh giá, khuyến mãi |
 
-Tài khoản quản trị được tạo tự động **đúng một lần**. Đặt `ADMIN_EMAIL` và
-`ADMIN_PASSWORD` trong `.env.docker` trước khi chạy; bỏ trống `ADMIN_PASSWORD` thì
-mật khẩu ngẫu nhiên sẽ in ra log:
+Tài khoản quản trị được tạo tự động **đúng một lần** với mật khẩu mặc định
+`Admin@123`. Đặt `ADMIN_EMAIL` và `ADMIN_PASSWORD` trong `.env.docker` trước khi chạy
+nếu muốn tự chọn.
 
-```powershell
-docker compose --env-file .env.docker logs backend
-```
+**Lần đăng nhập đầu tiên, hệ thống bắt buộc đổi mật khẩu** — mọi API đều trả 403
+cho tới khi đổi xong, nên không thể bỏ qua bằng cách gọi thẳng. Sau lần đó script
+bỏ qua hoàn toàn, nên đổi mật khẩu trong trang quản trị sẽ được giữ nguyên qua các
+lần `restart` và `up` sau.
 
-Sau lần đầu, script bỏ qua hoàn toàn — nên đổi mật khẩu trong trang quản trị sẽ
-được giữ nguyên qua các lần `restart` và `up` sau.
+Quản trị đặt lại mật khẩu cho tài khoản khác ở **Người dùng → biểu tượng chìa
+khóa**. Phiên đăng nhập cũ bị thu hồi ngay và tài khoản được đánh dấu phải đổi
+mật khẩu ở lần đăng nhập kế tiếp.
 
 Muốn dùng dữ liệu mẫu để xem thử (12 user, 22 sản phẩm, 13 đơn, 71 ảnh):
 

@@ -26,7 +26,9 @@ router.get('/', authRequired, requirePerm('users.read'), async (req, res) => {
   const w = where.length ? 'WHERE ' + where.join(' AND ') : '';
   try {
     const [[{ total }]] = await pool.query(`SELECT COUNT(*) total FROM users u ${w}`, p);
-    const [rows] = await pool.query(`SELECT u.*, GROUP_CONCAT(r.code) roles FROM users u
+    const [rows] = await pool.query(`SELECT u.id, u.email, u.phone, u.status, u.must_change_password,
+      u.email_verified_at, u.last_login_at, u.created_at, u.deleted_at,
+      GROUP_CONCAT(r.code) roles FROM users u
       LEFT JOIN user_roles ur ON ur.user_id=u.id LEFT JOIN roles r ON r.id=ur.role_id
       ${w} GROUP BY u.id ORDER BY u.id DESC LIMIT ? OFFSET ?`, [...p, limit, offset]);
     res.json({ data: rows, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } });
@@ -45,22 +47,44 @@ router.post('/', authRequired, requirePerm('users.write'), async (req, res) => {
     const [[role]] = await pool.query('SELECT id FROM roles WHERE code=?', [role_code]);
     if (!role) return res.status(400).json({ error: 'Vai tro khong ton tai' });
     const hash = await bcrypt.hash(password, 12);
-    const [r] = await pool.query("INSERT INTO users (email, phone, password_hash, status) VALUES (?,?,?,'active')", [em, phone || null, hash]);
+    const [r] = await pool.query("INSERT INTO users (email, phone, password_hash, status, must_change_password) VALUES (?,?,?,'active',?)",
+      [em, phone || null, hash, req.body.must_change_password ? 1 : 0]);
     await pool.query('INSERT INTO user_profiles (user_id, first_name, last_name, display_name) VALUES (?,?,?,?)',
       [r.insertId, first_name || null, last_name || null, [first_name, last_name].filter(Boolean).join(' ') || em || phone]);
     await pool.query('INSERT IGNORE INTO user_roles (user_id, role_id, assigned_by) VALUES (?,?,?)', [r.insertId, role.id, req.user.id]);
     const [[row]] = await pool.query('SELECT * FROM users WHERE id=?', [r.insertId]);
+    delete row.password_hash;
     res.status(201).json(row);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// GET /api/users/:id
-router.get('/:id', authRequired, async (req, res) => {
+// POST /api/users/:id/reset-password — quản trị đặt lại mật khẩu cho tài khoản khác
+router.post('/:id/reset-password', authRequired, requirePerm('users.write'), async (req, res) => {
   const id = req.params.id;
+  const password = String(req.body?.password || '');
+  const mustChange = req.body?.must_change_password !== false;
+  if (password.length < 8 || password.length > 128) return res.status(400).json({ error: 'Mat khau phai 8-128 ky tu' });
+  try {
+    const [[target]] = await pool.query('SELECT id, email, phone FROM users WHERE id=? AND deleted_at IS NULL', [id]);
+    if (!target) return res.status(404).json({ error: 'Khong tim thay nguoi dung' });
+    if (String(target.id) === String(req.user.id)) {
+      return res.status(400).json({ error: 'Dung muc doi mat khau cua ban o trang Ho so' });
+    }
+    const hash = await bcrypt.hash(password, 12);
+    await pool.query('UPDATE users SET password_hash=?, must_change_password=? WHERE id=?',
+      [hash, mustChange ? 1 : 0, id]);
+    await pool.query('UPDATE user_sessions SET revoked_at=NOW(6) WHERE user_id=? AND revoked_at IS NULL', [id]);
+    res.json({ ok: true, must_change_password: mustChange, sessions_revoked: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET /api/users/:id
+router.get('/:id', authRequired, async (req, res) => {  const id = req.params.id;
   if (String(req.user.id) !== String(id) && !req.user.permissions.includes('users.read') && !req.user.roles.includes('super_admin'))
     return res.status(403).json({ error: 'Khong co quyen' });
   const [[user]] = await pool.query('SELECT * FROM users WHERE id=?', [id]);
   if (!user) return res.status(404).json({ error: 'Khong tim thay' });
+  delete user.password_hash;
   const [[profile]] = await pool.query('SELECT * FROM user_profiles WHERE user_id=?', [id]);
   const [roles] = await pool.query(`SELECT r.* FROM user_roles ur JOIN roles r ON r.id=ur.role_id WHERE ur.user_id=?`, [id]);
   const [addresses] = await pool.query('SELECT * FROM user_addresses WHERE user_id=?', [id]);

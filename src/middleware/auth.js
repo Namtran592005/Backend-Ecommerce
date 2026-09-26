@@ -98,4 +98,16 @@ async function logAudit({ actor_user_id, action, entity_type, entity_id, old_val
   } catch (_) { /* ignore */ }
 }
 
-module.exports = { signToken, signAccess, signRefresh, hashToken, refreshCookieOptions, authRequired, authOptional, requirePerm, logAudit };
+// Đọc user id từ access token mà không cần session (dùng cho guard chạy trước router)
+function userIdFromRequest(req) {
+  const h = req.headers.authorization || '';
+  const token = h.startsWith('Bearer ') ? h.slice(7) : null;
+  if (!token) return null;
+  try {
+    const payload = jwt.verify(token, SECRET());
+    if (payload.typ && payload.typ !== 'access') return null;
+    return payload.id || null;
+  } catch { return null; }
+}
+
+module.exports = { signToken, signAccess, signRefresh, hashToken, refreshCookieOptions, authRequired, authOptional, requirePerm, logAudit, userIdFromRequest };

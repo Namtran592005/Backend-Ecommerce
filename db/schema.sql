@@ -36,6 +36,7 @@ CREATE TABLE users (
   email VARCHAR(255) NULL,
   phone VARCHAR(20) NULL,
   password_hash VARCHAR(255) NULL,
+  must_change_password TINYINT(1) NOT NULL DEFAULT 0,
   status ENUM('pending','active','inactive','suspended','deleted') NOT NULL DEFAULT 'pending',
   email_verified_at DATETIME(6) NULL,
   phone_verified_at DATETIME(6) NULL,

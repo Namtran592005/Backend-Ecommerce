@@ -12,6 +12,11 @@ const check = (req, res) => {
 };
 const normEmail = (e) => (e ? String(e).trim().toLowerCase() : null);
 
+async function mustChangeFlag(userId) {
+  const [[r]] = await pool.query('SELECT must_change_password FROM users WHERE id=?', [userId]);
+  return Boolean(r?.must_change_password);
+}
+
 // Luu cặp access/refresh vào user_sessions (logout/refresh có hiệu lực ngay)
 async function createSession(userId, req, access, refresh) {
   await pool.query(`INSERT INTO user_sessions (user_id, session_token_hash, refresh_token_hash, ip_address, user_agent, expires_at)
@@ -72,7 +77,7 @@ router.post('/login', body('identifier').notEmpty().trim(), body('password').not
     const { access, refresh } = issuePair(res, user);
     await createSession(user.id, req, access, refresh);
     const [roles] = await pool.query(`SELECT r.code FROM user_roles ur JOIN roles r ON r.id=ur.role_id WHERE ur.user_id=?`, [user.id]);
-    res.json({ token: access, accessToken: access, refreshToken: refresh, expiresIn: process.env.JWT_EXPIRES_IN || '15m', user: { id: user.id, email: user.email, phone: user.phone, roles: roles.map(r => r.code) } });
+    res.json({ token: access, accessToken: access, refreshToken: refresh, expiresIn: process.env.JWT_EXPIRES_IN || '15m', mustChangePassword: Boolean(user.must_change_password), user: { id: user.id, email: user.email, phone: user.phone, roles: roles.map(r => r.code) } });
   } catch (e) {
     const prod = process.env.NODE_ENV === 'production';
     res.status(500).json({ error: prod ? 'Loi server' : e.message });
@@ -118,7 +123,7 @@ router.post('/logout', authRequired, async (req, res) => {
 router.get('/me', authRequired, async (req, res) => {
   const [[profile]] = await pool.query('SELECT * FROM user_profiles WHERE user_id=?', [req.user.id]);
   const [addresses] = await pool.query('SELECT * FROM user_addresses WHERE user_id=? ORDER BY is_default DESC, id DESC', [req.user.id]);
-  res.json({ user: { id: req.user.id, email: req.user.email, phone: req.user.phone, status: req.user.status, roles: req.user.roles, permissions: req.user.permissions }, profile, addresses });
+  res.json({ user: { id: req.user.id, email: req.user.email, phone: req.user.phone, status: req.user.status, roles: req.user.roles, permissions: req.user.permissions }, profile, addresses, mustChangePassword: await mustChangeFlag(req.user.id) });
 });
 
 // PUT /api/auth/me
@@ -139,7 +144,7 @@ router.put('/password', authRequired, body('old_password').notEmpty(), body('new
   const ok = await bcrypt.compare(req.body.old_password, u.password_hash || '');
   if (!ok) return res.status(400).json({ error: 'Mat khau cu sai' });
   const hash = await bcrypt.hash(req.body.new_password, 12);
-  await pool.query('UPDATE users SET password_hash=? WHERE id=?', [hash, req.user.id]);
+  await pool.query('UPDATE users SET password_hash=?, must_change_password=0 WHERE id=?', [hash, req.user.id]);
   const h = req.headers.authorization || '';
   const cur = h.startsWith('Bearer ') ? h.slice(7) : null;
   if (cur) await pool.query('UPDATE user_sessions SET revoked_at=NOW(6) WHERE user_id=? AND session_token_hash<>?', [req.user.id, hashToken(cur)]);

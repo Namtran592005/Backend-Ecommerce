@@ -1,4 +1,6 @@
 const rateLimit = require('express-rate-limit');
+const { pool } = require('../config/db');
+const { userIdFromRequest } = require('./auth');
 
 // Chống brute-force cho login/register/refresh: 30 req / 10 phút / IP.
 // skipSuccessfulRequests: đăng nhập ĐÚNG không tính — chỉ chặn kẻ đoán mật khẩu,
@@ -58,4 +60,21 @@ function corsOptions() {
   };
 }
 
-module.exports = { authLimiter, apiLimiter, httpsRedirect, corsOptions };
+// Tài khoản còn cờ must_change_password chỉ được dùng /auth/me, /auth/password, /auth/logout
+const PASSWORD_FREE_PATHS = new Set(['/auth/me', '/auth/password', '/auth/logout', '/auth/refresh']);
+
+// Mount trước các router nên chưa có req.user — phải tự đọc token.
+async function requirePasswordChanged(req, res, next) {
+  if (PASSWORD_FREE_PATHS.has(req.path)) return next();
+  try {
+    const id = userIdFromRequest(req);
+    if (!id) return next();
+    const [[row]] = await pool.query('SELECT must_change_password FROM users WHERE id=?', [id]);
+    if (row?.must_change_password) {
+      return res.status(403).json({ error: 'Phai doi mat khau truoc khi su dung', code: 'must_change_password' });
+    }
+  } catch { /* DB lỗi thì cho qua, không chặn nhầm */ }
+  return next();
+}
+
+module.exports = { authLimiter, apiLimiter, httpsRedirect, corsOptions, requirePasswordChanged };

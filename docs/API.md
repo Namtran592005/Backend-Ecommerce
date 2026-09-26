@@ -22,12 +22,18 @@ Mọi endpoint đều bắt đầu bằng `/api`. Ký hiệu 🔒 = cần đăng
 | Method & path | Auth | Body | Response |
 |---|---|---|---|
 | `POST /register` | — | `{ email? , phone?, password (≥8), first_name?, last_name? }` (cần email HOẶC phone) | 201 `{ token, accessToken, expiresIn, user }` + set cookie refresh |
-| `POST /login` | — | `{ identifier (email/phone), password }` | 200 như trên + `user.roles[]` |
+| `POST /login` | — | `{ identifier (email/phone), password }` | 200 như trên + `user.roles[]` + `mustChangePassword` |
 | `POST /refresh` | cookie | — | 200 `{ accessToken, expiresIn }` · 401 → login lại |
 | `POST /logout` | 🔒 | — | 200 `{ ok:true }` (thu hồi cả 2 token) |
-| `GET /me` | 🔒 | — | `{ user:{ id, email, phone, status, roles[], permissions[] }, profile, addresses[] }` |
+| `GET /me` | 🔒 | — | `{ user:{ id, email, phone, status, roles[], permissions[] }, profile, addresses[], mustChangePassword }` |
 | `PUT /me` | 🔒 | `{ first_name?, last_name?, display_name?, avatar_url?, date_of_birth?, gender?, marketing_opt_in? }` | 200 `{ ok:true }` |
-| `PUT /password` | 🔒 | `{ old_password, new_password (≥8) }` | 200 (đá mọi phiên khác) |
+| `PUT /password` | 🔒 | `{ old_password, new_password (≥8) }` | 200 (đá mọi phiên khác + xoá cờ `must_change_password`) |
+
+**Bắt buộc đổi mật khẩu.** Tài khoản mới tạo bởi quản trị (`reset-password`) hoặc tài
+khoản admin mặc định lúc cài mới sẽ có cờ `must_change_password`. Khi cờ đang bật,
+**mọi endpoint ngoài `/api/auth` đều trả 403** `{ code: 'must_change_password' }` —
+kể cả khi gọi thẳng bằng token, không bypass được. Giao diện bắt buộc chuyển tới
+màn hình đổi mật khẩu.
 
 Roles: `super_admin | store_manager | warehouse_staff | customer_support | marketing | customer`
 (`super_admin` bypass mọi quyền).
@@ -43,7 +49,8 @@ Roles: `super_admin | store_manager | warehouse_staff | customer_support | marke
 | `PATCH /:id/status` | `users.write` | `{ status: pending\|active\|inactive\|suspended\|deleted }` — `deleted` là xoá mềm |
 | `DELETE /:id` | `users.write` | Xoá cứng. 409 `{ can_force:true }` nếu tài khoản có đơn hình thành hoặc là super_admin → thêm `?force=1`. 400 nếu tự xoá mình |
 | `POST /:id/roles` | `users.write` | `{ role_code }` hoặc `{ role_id }` |
-| `POST /` | `users.write` | Tạo tài khoản + gán vai trò: `{ email?, phone?, password (≥8), first_name?, last_name?, role_code? }` (dùng thêm nhân sự) |
+| `POST /` | `users.write` | Tạo tài khoản + gán vai trò: `{ email?, phone?, password (≥8), first_name?, last_name?, role_code?, must_change_password? }` (dùng thêm nhân sự) |
+| `POST /:id/reset-password` | `users.write` | `{ password (8-128), must_change_password? }` — thu hồi toàn bộ phiên của tài khoản đó. 400 nếu tự đặt lại cho chính mình (dùng `PUT /api/auth/password`) |
 | `DELETE /:id/roles/:roleId` | `users.write` | 400 nếu gỡ vai trò super_admin cuối cùng hoặc tự gỡ của mình |
 | `POST /:id/addresses` | chính mình / `users.write` | Bắt buộc `recipient_name, phone, province_name, address_line`; `is_default` auto reset cái cũ |
 | `PUT /addresses/:addrId`, `DELETE /addresses/:addrId` | chủ địa chỉ / `users.write` | |

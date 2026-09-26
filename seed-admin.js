@@ -1,25 +1,9 @@
 const bcrypt = require('bcryptjs');
-const crypto = require('crypto');
 const { pool } = require('./src/config/db');
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
-const MIN_LEN = 12;
-
-function randomPassword() {
-  const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
-  const lower = 'abcdefghijkmnopqrstuvwxyz';
-  const digit = '23456789';
-  const sym = '!@#$%^&*-_=+';
-  const all = upper + lower + digit + sym;
-  const pick = (set) => set[crypto.randomInt(set.length)];
-  const chars = [pick(upper), pick(lower), pick(digit), pick(sym)];
-  while (chars.length < 20) chars.push(pick(all));
-  for (let i = chars.length - 1; i > 0; i--) {
-    const j = crypto.randomInt(i + 1);
-    [chars[i], chars[j]] = [chars[j], chars[i]];
-  }
-  return chars.join('');
-}
+const MIN_LEN = 8;
+const DEFAULT_PASSWORD = 'Admin@123';
 
 // Chờ kết nối DB nội bộ (lần đầu MySQL trong Docker sẵn sàng TCP)
 async function waitForDb(retries = 20, delayMs = 3000) {
@@ -39,13 +23,8 @@ async function waitForDb(retries = 20, delayMs = 3000) {
   await waitForDb();
 
   const email = (process.env.ADMIN_EMAIL || 'admin@example.com').trim().toLowerCase();
-  let password = process.env.ADMIN_PASSWORD;
-  let generated = false;
-
-  if (!password) {
-    password = randomPassword();
-    generated = true;
-  } else if (password.length < MIN_LEN) {
+  const password = process.env.ADMIN_PASSWORD || DEFAULT_PASSWORD;
+  if (password.length < MIN_LEN) {
     console.error(`ADMIN_PASSWORD phai it nhat ${MIN_LEN} ky tu.`);
     process.exit(1);
   }
@@ -74,22 +53,17 @@ async function waitForDb(retries = 20, delayMs = 3000) {
   const name = (process.env.ADMIN_NAME || 'Admin').trim();
   const hash = await bcrypt.hash(password, 10);
   const [r] = await pool.query(
-    "INSERT INTO users (email, password_hash, status, email_verified_at) VALUES (?,?, 'active', NOW(6))",
+    "INSERT INTO users (email, password_hash, status, email_verified_at, must_change_password) VALUES (?,?, 'active', NOW(6), 1)",
     [email, hash]
   );
   await pool.query('INSERT INTO user_profiles (user_id, display_name) VALUES (?,?)', [r.insertId, name]);
   await pool.query('INSERT IGNORE INTO user_roles (user_id, role_id) VALUES (?,?)', [r.insertId, role.id]);
 
   console.log('============================================================');
-  console.log('  Da tao tai khoan quan tri');
+  console.log('  Da tao tai khoan quan tri mac dinh');
   console.log(`  Email:    ${email}`);
-  if (generated) {
-    console.log(`  Mat khau: ${password}`);
-    console.log('  -> Mat khau sinh ngau nhien, CHI IN O DAY MOT LAN.');
-    console.log('  -> Luu lai ngay, doi trong trang quan tri sau khi dang nhap.');
-  } else {
-    console.log('  Mat khau: lay tu ADMIN_PASSWORD');
-  }
+  console.log(`  Mat khau: ${password}`);
+  console.log('  -> Lan dang nhap dau tien, he thong bat buoc doi mat khau.');
   console.log('============================================================');
 
   await pool.end();

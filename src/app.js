@@ -4,7 +4,7 @@ const helmet = require('helmet');
 const morgan = require('morgan');
 const cookieParser = require('cookie-parser');
 const { dbCheck } = require('./config/db');
-const { authLimiter, apiLimiter, httpsRedirect, corsOptions } = require('./middleware/security');
+const { authLimiter, apiLimiter, httpsRedirect, corsOptions, requirePasswordChanged } = require('./middleware/security');
 
 const authRoutes = require('./routes/auth');
 const usersRoutes = require('./routes/users');
@@ -46,6 +46,9 @@ app.get('/api/health', async (req, res) => {
 });
 
 app.use('/api/auth', authLimiter, authRoutes);
+// Tài khoản mới tạo / vừa được đặt lại mật khẩu bị chặn mọi API trừ /auth/me,
+// /auth/password, /auth/logout cho tới khi họ tự đổi mật khẩu.
+app.use('/api', requirePasswordChanged);
 app.use('/api/users', usersRoutes);
 app.use('/api', catalogRoutes);
 app.use('/api/inventory', inventoryRoutes);

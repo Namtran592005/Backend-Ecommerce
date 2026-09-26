@@ -52,7 +52,7 @@ router.post('/cash-flows', authRequired, requirePerm('payments.write'), async (r
 });
 
 // CAMPAIGNS & BANNERS
-router.get('/campaigns', async (req, res) => {
+router.get('/campaigns', authRequired, requirePerm('promotions.read'), async (req, res) => {
   if (req.query.all === '1') {
     const [all] = await pool.query(`SELECT c.*, (SELECT COUNT(*) FROM campaign_products cp WHERE cp.campaign_id=c.id) product_count
       FROM campaigns c ORDER BY c.id DESC`);
@@ -107,8 +107,10 @@ router.get('/banners', async (req, res) => {
   res.json(rows);
 });
 router.get('/banners/all', authRequired, requirePerm('promotions.read'), async (req, res) => {
-  const [rows] = await pool.query(`SELECT b.*, m.object_key image_key FROM banners b
-    LEFT JOIN media_files m ON m.id=b.image_media_id ORDER BY b.sort_order, b.id`);
+  const [rows] = await pool.query(`SELECT b.*, m.object_key image_key, mm.object_key mobile_image_key FROM banners b
+    LEFT JOIN media_files m ON m.id=b.image_media_id
+    LEFT JOIN media_files mm ON mm.id=b.mobile_image_media_id
+    ORDER BY b.sort_order, b.id`);
   res.json(rows);
 });
 router.post('/banners', authRequired, requirePerm('promotions.write'), async (req, res) => {
