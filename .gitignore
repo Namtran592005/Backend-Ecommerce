@@ -1,4 +1,4 @@
-# Secrets & môi trường máy (không push)
+# Secrets & moi truong may (khong push)
 .env
 .env.docker
 .env.local

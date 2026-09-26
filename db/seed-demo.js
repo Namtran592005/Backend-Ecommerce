@@ -194,14 +194,14 @@ async function createOrder({ num, userId, status, payStatus, payCode, items, cou
     const pal = CAT_PALETTE[catIdx++ % CAT_PALETTE.length];
     let imgId = null;
     if (storageOk) imgId = await putArt(`demo/cat-${slug}.svg`, categoryArt({ bg1: pal.bg1, bg2: pal.bg2, main: pal.main, label: name }));
-    const [r] = await q("INSERT INTO categories (parent_id,name,slug,icon,image_media_id,sort_order,status) VALUES (NULL,?,?,?,?,?,'active')",
-      [name, slug, icon, imgId, sort]);
+    const [r] = await q("INSERT INTO categories (parent_id,name,slug,image_media_id,sort_order,status) VALUES (NULL,?,?,?,?,'active')",
+      [name, slug, imgId, sort]);
     catIds[slug] = r.insertId;
     for (const [ks, kn, ki, ksrt] of kids) {
       const kpal = CAT_PALETTE[catIdx++ % CAT_PALETTE.length];
       let kImgId = null;
       if (storageOk) kImgId = await putArt(`demo/cat-${ks}.svg`, categoryArt({ bg1: kpal.bg1, bg2: kpal.bg2, main: kpal.main, label: kn }));
-      const [kr] = await q("INSERT INTO categories (parent_id,name,slug,icon,image_media_id,sort_order,status) VALUES (?,?,?,?,?,?,'active')", [r.insertId, kn, ks, ki, kImgId, ksrt]);
+      const [kr] = await q("INSERT INTO categories (parent_id,name,slug,image_media_id,sort_order,status) VALUES (?,?,?,?,?,'active')", [r.insertId, kn, ks, kImgId, ksrt]);
       catIds[ks] = kr.insertId;
     }
   }

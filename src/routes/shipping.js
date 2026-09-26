@@ -47,10 +47,8 @@ router.delete('/methods/:id', authRequired, requirePerm('shipping.write'), async
   const [[m]] = await pool.query('SELECT * FROM shipping_methods WHERE id=?', [req.params.id]);
   if (!m) return res.status(404).json({ error: 'Khong tim thay' });
   const [[{ n }]] = await pool.query('SELECT COUNT(*) n FROM shipments WHERE shipping_method_id=?', [m.id]);
-  const [[{ o }]] = await pool.query("SELECT COUNT(*) o FROM orders WHERE shipping_method_id=? AND status NOT IN ('cancelled','returned','refunded')", [m.id]);
-  if ((n > 0 || o > 0) && req.query.force !== '1')
-    return res.status(409).json({ error: `Hinh thuc giao da dung cho ${n} van don va ${o} don hang. Tat di thay vi xoa, hoac them ?force=1`, can_force: true, shipment_count: n, order_count: o });
-  if (o > 0) await pool.query('UPDATE orders SET shipping_method_id=NULL WHERE shipping_method_id=?', [m.id]);
+  if (n > 0 && req.query.force !== '1')
+    return res.status(409).json({ error: `Hinh thuc giao da dung cho ${n} van don. Tat di thay vi xoa, hoac them ?force=1`, can_force: true, shipment_count: n, order_count: n });
   await pool.query('DELETE FROM shipping_methods WHERE id=?', [m.id]);
   res.json({ ok: true, detached_shipments: n });
 });

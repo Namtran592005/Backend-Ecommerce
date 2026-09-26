@@ -52,11 +52,11 @@ router.get('/categories/tree', async (req, res) => {
   res.json(roots);
 });
 router.post('/categories', authRequired, requirePerm('categories.write'), async (req, res) => {
-  const { parent_id, name, description, image_media_id, icon, sort_order, status } = req.body;
+  const { parent_id, name, description, image_media_id, sort_order, status } = req.body;
   if (!name) return res.status(400).json({ error: 'Thieu name' });
   const slug = slugify(req.body.slug || name);
-  const [r] = await pool.query('INSERT INTO categories (parent_id,name,slug,description,image_media_id,icon,sort_order,status) VALUES (?,?,?,?,?,?,?,?)',
-    [parent_id || null, name, slug, description || null, image_media_id || null, icon || null, sort_order || 0, status || 'active']);
+  const [r] = await pool.query('INSERT INTO categories (parent_id,name,slug,description,image_media_id,sort_order,status) VALUES (?,?,?,?,?,?,?)',
+    [parent_id || null, name, slug, description || null, image_media_id || null, sort_order || 0, status || 'active']);
   const [[row]] = await pool.query('SELECT * FROM categories WHERE id=?', [r.insertId]);
   res.status(201).json(row);
 });
@@ -64,8 +64,8 @@ router.put('/categories/:id', authRequired, requirePerm('categories.write'), asy
   const [[c]] = await pool.query('SELECT * FROM categories WHERE id=?', [req.params.id]);
   if (!c) return res.status(404).json({ error: 'Khong tim thay' });
   const f = { ...c, ...req.body };
-  await pool.query('UPDATE categories SET parent_id=?,name=?,slug=?,description=?,image_media_id=?,icon=?,sort_order=?,status=? WHERE id=?',
-    [f.parent_id, f.name, f.slug, f.description, f.image_media_id, f.icon || null, f.sort_order, f.status, c.id]);
+  await pool.query('UPDATE categories SET parent_id=?,name=?,slug=?,description=?,image_media_id=?,sort_order=?,status=? WHERE id=?',
+    [f.parent_id, f.name, f.slug, f.description, f.image_media_id, f.sort_order, f.status, c.id]);
   const [[row]] = await pool.query('SELECT * FROM categories WHERE id=?', [c.id]);
   res.json(row);
 });

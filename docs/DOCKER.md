@@ -110,7 +110,8 @@ docker exec unimate-backend-1 node db/seed-demo.js
 | Hiện tượng | Nguyên nhân / cách sửa |
 |---|---|
 | Backend `Restarting`, log `ECONNREFUSED mysql:3306` | MySQL chưa mở TCP xong — backend tự thử lại ~60s rồi mới chạy; cứ đợi |
-| `pull access denied for minio/minio` | Image đã chuyển sang `quay.io/minio/minio` (compose đã sửa đúng) |
+| `401 Unauthorized` khi pull `quay.io/minio/minio` | MinIO đã archive bản community (02/2026) + gỡ khỏi Docker Hub, quay.io không còn public. Compose dùng mirror `openvidu/minio` |
+| `pull access denied for minio/minio` | Repo Docker Hub đã bị xoá hoàn toàn — đừng dùng tag `minio/minio`, hãy để compose khai báo `openvidu/minio` |
 | Upload 201 nhưng mở URL 404 | Caddy chưa load Caddyfile mới → `docker restart unimate-caddy-1` (Caddy tắt admin API nên không `reload` được) |
 | `GET /api/...` 301 về `https://` khi test HTTP | Đang bật `FORCE_HTTPS=1` — test local thì đặt `FORCE_HTTPS=0`, `COOKIE_SECURE=0` |
 | Muốn nhập lại schema | Sửa `db/schema.sql` → `npm run db:init` (sinh lại `docker/mysql-init/01-schema.sql`, kèm fix key `object_key`) → `down -v` + `up -d` |

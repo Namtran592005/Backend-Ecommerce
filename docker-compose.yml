@@ -81,8 +81,13 @@ services:
       - appnet
 
   # Kho object storage cho ảnh/video/tệp (tương thích S3, thay R2/AWS được qua S3_*)
+  # Image mirror: MinIO đã archive bản community (02/2026) và gỡ khỏi Docker Hub,
+  # quay.io/minio/minio trả 401. openvidu/minio là bản đóng gói lại từ release MinIO 2026-07.
   minio:
-    image: quay.io/minio/minio:latest
+    image: openvidu/minio:RELEASE.2026-07-17T12-07-51Z
+    # Image openvidu chạy UID 1001 (non-root) nên không tạo được /data/.minio.sys
+    # trên volume do Docker tạo (owner root) → phải ép root. Chỉ dùng cho stack local.
+    user: root
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
