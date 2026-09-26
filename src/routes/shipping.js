@@ -13,8 +13,14 @@ router.get('/methods', async (req, res) => {
     const [all] = await pool.query('SELECT sm.*, sp.name provider_name, (SELECT COUNT(*) FROM shipments sh WHERE sh.shipping_method_id=sm.id) shipment_count FROM shipping_methods sm LEFT JOIN shipping_providers sp ON sp.id=sm.provider_id ORDER BY sm.sort_order, sm.id');
     return res.json(all);
   }
+  // config.show_on_storefront = false -> phương thức nội bộ (mua tại cửa hàng, chuyển kho) không hiện ở web
   const [rows] = await pool.query("SELECT sm.*, sp.name provider_name FROM shipping_methods sm LEFT JOIN shipping_providers sp ON sp.id=sm.provider_id WHERE sm.is_active=1 ORDER BY sm.sort_order, sm.id");
-  res.json(rows);
+  res.json(rows.filter((m) => {
+    if (!m.config) return true;
+    let cfg = m.config;
+    if (typeof cfg === 'string') { try { cfg = JSON.parse(cfg); } catch { return true; } }
+    return cfg.show_on_storefront !== false;
+  }));
 });
 router.post('/methods', authRequired, requirePerm('shipping.write'), async (req, res) => {
   const { provider_id, code, name, description, base_fee, is_active, sort_order } = req.body;

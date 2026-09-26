@@ -2,13 +2,30 @@ const express = require('express');
 const { pool } = require('../config/db');
 const { authRequired, requirePerm } = require('../middleware/auth');
 const { refundNumber, paged } = require('../utils/helpers');
+const storage = require('../config/storage');
 
 const router = express.Router();
 
 // Payment methods
+// config.logo_media_id / config.logo_url: logo hiển thị ở checkout (web bán hàng)
+const readConfig = (raw) => {
+  if (!raw) return null;
+  if (typeof raw === 'object') return raw;
+  try { return JSON.parse(raw); } catch { return null; }
+};
+async function withLogo(m) {
+  const cfg = readConfig(m.config);
+  if (cfg && cfg.logo_url) return { ...m, logo_url: cfg.logo_url };
+  if (cfg && cfg.logo_media_id) {
+    const [[mf]] = await pool.query('SELECT object_key FROM media_files WHERE id=?', [cfg.logo_media_id]);
+    if (mf) return { ...m, logo_url: storage.publicUrl(mf.object_key) };
+  }
+  return { ...m, logo_url: null };
+}
+
 router.get('/methods', async (req, res) => {
   const [rows] = await pool.query('SELECT * FROM payment_methods ORDER BY sort_order');
-  res.json(rows);
+  res.json(await Promise.all(rows.map(withLogo)));
 });
 router.post('/methods', authRequired, requirePerm('payments.write'), async (req, res) => {
   const { code, name, provider, type, is_active, sort_order, config } = req.body;

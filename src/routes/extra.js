@@ -174,6 +174,7 @@ const PAGE_SETTINGS = {
       address: txt(x.address, 300),
       phone: txt(x.phone, 30),
       hours: txt(x.hours, 120),
+      image: txt(x.image, 1000) || null,
     })),
   'page.policy.sales': (v) => normPolicy(v, 'Chính sách bán hàng'),
   'page.policy.shipping': (v) => normPolicy(v, 'Chính sách giao hàng'),

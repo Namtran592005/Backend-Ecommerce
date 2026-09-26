@@ -1,10 +1,12 @@
 // Nap du lieu DEMO chuan cho toan he thong (xoa het du lieu cu tru RBAC/seed goc).
 // Chay: npm run db:seed-demo (local) hoac trong container backend.
 const bcrypt = require('bcryptjs');
+const fs = require('fs');
+const path = require('path');
 const { pool } = require('../src/config/db');
 const storage = require('../src/config/storage');
 const { DEFAULT_ADMIN_EMAIL, DEFAULT_ADMIN_PASSWORD } = require('./admin-defaults');
-const { productArt, bannerArt, categoryArt } = require('./demo-art');
+const { productArt, bannerArt, categoryArt, paymentLogo, storeArt } = require('./demo-art');
 
 const q = (sql, p) => pool.query(sql, p || []);
 
@@ -314,7 +316,13 @@ async function createOrder({ num, userId, status, payStatus, payCode, items, cou
   }
 
   console.log('== Hình thức giao / coupon / khuyến mãi ==');
-  await q("INSERT INTO shipping_methods (provider_id,code,name,description,base_fee,is_active,sort_order) VALUES (1,'NHANH','Giao nhanh','Nhận trong 24 giờ nội bộ','30000',TRUE,1),(1,'TIETKIEM','Giao tiết kiệm','Tiết kiệm 3-5 ngày','18000',TRUE,2),(1,'HOATOC','Giao hỏa tốc','Sẵn 2 giờ trong TP.HCM','50000',TRUE,3),(1,'CHUYEN','Giao chuyển kho','Chuyển kho đặc biệt','0',TRUE,4)");
+  // config.show_on_storefront=false -> không hiện ở web (nội bộ / mua tại cửa hàng)
+  await q("INSERT INTO shipping_methods (provider_id,code,name,description,base_fee,is_active,sort_order,config) VALUES"
+    + " (1,'NHANH','Giao nhanh','Nhận trong 24 giờ nội bộ','30000',TRUE,1,NULL),"
+    + " (1,'TIETKIEM','Giao tiết kiệm','Tiết kiệm 3-5 ngày','18000',TRUE,2,NULL),"
+    + " (1,'HOATOC','Giao hỏa tốc','Sẵn 2 giờ trong TP.HCM','50000',TRUE,3,NULL),"
+    + " (1,'CHUYEN','Giao chuyển kho','Chuyển kho đặc biệt','0',TRUE,4,?)",
+    [JSON.stringify({ show_on_storefront: false, internal_only: true })]);
   await q(`INSERT INTO coupons (code,type,value,minimum_order_amount,maximum_discount_amount,usage_limit,used_count,starts_at,expires_at,status)
     VALUES ('CHAO10','percentage',10,200000,50000,1000,0,'2020-01-01','2030-01-01','active'),
            ('FREESHIP','free_shipping',0,500000,NULL,500,0,'2020-01-01','2030-01-01','active'),
@@ -446,6 +454,13 @@ async function createOrder({ num, userId, status, payStatus, payCode, items, cou
       { label: 'Ưu Đãi Đặc Biệt', link: '/khuyen-mai' },
     ])]);
 
+  // Ảnh đại diện cửa hàng cho trang Giới thiệu (URL công khai, admin đổi được)
+  let storeImgUrl = '';
+  if (storageOk) {
+    await putArt('demo/store-1.svg', storeArt({ label: 'UniMate' }));
+    storeImgUrl = storage.publicUrl('demo/store-1.svg');
+  }
+
   // Nội dung các trang tĩnh — sửa được trong admin (Hệ thống > Nội dung trang)
   const PAGE_CONTENT = [
     ['page.about', {
@@ -453,9 +468,13 @@ async function createOrder({ num, userId, status, payStatus, payCode, items, cou
       intro: 'UniMate là cửa hàng trực tuyến chuyên phân phối thời trang, phụ kiện, đồ gia dụng và thiết bị điện tử chính hãng trên toàn quốc. Chúng tôi chọn từng món đồ bằng tiêu chuẩn chất lượng và giá hợp lý, để mỗi lần bạn mua đều yên tâm dùng lâu.',
       body: 'Sứ mệnh của chúng tôi là làm cho việc mua sắm trở nên nhanh gọn và đáng tin cậy: giao hàng đúng hẹn, đổi trả dễ dàng, và đội ngũ tư vấn hiểu rõ nhu cầu của bạn.',
     }, 'Nội dung giới thiệu'],
-    ['page.stores', [
-      { name: 'Cửa hàng UniMate', address: '123 Phường Nguyệt Hoá, Vĩnh Long', phone: '1900 255 579', hours: 'Thứ 2 - Chủ nhật: 8:00 - 21:00' },
-    ], 'Danh sách cửa hàng'],
+    ['page.stores', [{
+      name: 'Cửa hàng UniMate',
+      address: '123 Phường Nguyệt Hoá, Vĩnh Long',
+      phone: '1900 255 579',
+      hours: 'Thứ 2 - Chủ nhật: 8:00 - 21:00',
+      image: storeImgUrl,
+    }], 'Danh sách cửa hàng'],
     ['page.faq', [
       { q: 'Tôi có cần tạo tài khoản để mua hàng không?', a: 'Không. Bạn vẫn có thể đặt hàng như khách. Nếu muốn theo dõi đơn và tích điểm, hãy tra cứu đơn hàng bằng số điện thoại, mã đơn và ngày đặt, hoặc đăng ký tài khoản miễn phí.' },
       { q: 'Thời gian giao hàng mất bao lâu?', a: 'Nội thành giao trong 24 giờ làm việc. Các tỉnh thành khác giao từ 2 đến 5 ngày làm việc. Bạn sẽ nhận được mã vận đơn ngay khi đơn hàng được chuyển sang đơn vị vận chuyển.' },
@@ -504,6 +523,32 @@ async function createOrder({ num, userId, status, payStatus, payCode, items, cou
     await q(`INSERT INTO system_settings (setting_key,setting_value,description,is_public) VALUES (?,?,?,TRUE)
       ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value), description=VALUES(description), is_public=TRUE`,
       [key, JSON.stringify(val), desc]);
+  }
+
+  // Logo phương thức thanh toán. Ưu tiên logo thật trong db/assets/pay/ (tải từ trang
+  // chính thức của từng hãng), phương thức chưa có logo thì dùng hình vẽ mặc định.
+  // Admin vẫn thay được bằng logo khác trong Thanh toán.
+  if (storageOk) {
+    const BRAND_LOGO = { vnpay: 'vnpay', zalopay: 'zalopay', momo: 'momo', card: 'visa' };
+    for (const code of ['cod', 'bank_transfer', 'vnpay', 'momo', 'zalopay', 'card']) {
+      const [[pmRow]] = await q('SELECT id FROM payment_methods WHERE code=?', [code]);
+      if (!pmRow) continue;
+      const brand = BRAND_LOGO[code];
+      const file = brand && path.join(__dirname, 'assets', 'pay', `${brand}.svg`);
+      let mid = null;
+      if (file && fs.existsSync(file)) {
+        const key = `demo/pay-${code}.svg`;
+        const buf = fs.readFileSync(file);
+        await storage.putObject(key, buf, 'image/svg+xml');
+        const [r] = await q(`INSERT INTO media_files (storage_provider, object_key, original_name, mime_type, size_bytes)
+          VALUES ('s3',?,?,'image/svg+xml',?)`, [key, `${code}.svg`, buf.length]);
+        mid = r.insertId;
+      } else {
+        mid = await putArt(`demo/pay-${code}.svg`, paymentLogo({ code }));
+      }
+      await q('UPDATE payment_methods SET config=JSON_SET(COALESCE(config, JSON_OBJECT()), "$.logo_media_id", ?) WHERE id=?',
+        [mid, pmRow.id]);
+    }
   }
 
   const [[u]] = await q('SELECT COUNT(*) n FROM users');
